@@ -5,11 +5,14 @@
 
 package org.signal.cdsi.account.aws;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.micronaut.context.annotation.Factory;
 import jakarta.inject.Singleton;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.core.retry.RetryMode;
 import software.amazon.awssdk.core.retry.RetryPolicy;
+import software.amazon.awssdk.core.retry.conditions.OrRetryCondition;
+import software.amazon.awssdk.core.retry.conditions.RetryCondition;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
 
@@ -27,10 +30,18 @@ class DynamoDbClientFactory {
     return DynamoDbAsyncClient.builder()
         .region(Region.of(accountTableConfiguration.getRegion()))
         .overrideConfiguration(ClientOverrideConfiguration.builder()
-            .retryPolicy(RetryPolicy.forRetryMode(RetryMode.ADAPTIVE)
-                .copy(builder -> builder.numRetries(accountTableConfiguration.getMaxRetries())
-                    .fastFailRateLimiting(false)))
+            .retryPolicy(getRetryPolicy())
             .build())
         .build();
+  }
+
+  @VisibleForTesting
+  RetryPolicy getRetryPolicy() {
+    return RetryPolicy.forRetryMode(RetryMode.ADAPTIVE)
+        .copy(builder -> builder.numRetries(accountTableConfiguration.getMaxRetries())
+            .additionalRetryConditionsAllowed(false)
+            .retryCapacityCondition(null)
+            .retryCondition(OrRetryCondition.create(RetryCondition.defaultRetryCondition(), new RetryOnProvisionedCapacityExceededCondition()))
+            .fastFailRateLimiting(false));
   }
 }
