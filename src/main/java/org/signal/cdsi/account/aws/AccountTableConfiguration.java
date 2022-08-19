@@ -25,9 +25,6 @@ class AccountTableConfiguration {
   @Positive
   private int tableReadSegments = 16;
 
-  @Positive
-  private int maxRetries = 128;
-
   public String getRegion() {
     return region;
   }
@@ -58,13 +55,5 @@ class AccountTableConfiguration {
 
   public void setTableReadSegments(final int tableReadSegments) {
     this.tableReadSegments = tableReadSegments;
-  }
-
-  public int getMaxRetries() {
-    return maxRetries;
-  }
-
-  public void setMaxRetries(final int maxRetries) {
-    this.maxRetries = maxRetries;
   }
 }

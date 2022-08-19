@@ -36,12 +36,22 @@ class DynamoDbClientFactory {
   }
 
   @VisibleForTesting
-  RetryPolicy getRetryPolicy() {
+  static RetryPolicy getRetryPolicy() {
+    // Our DynamoDB client will only ever do one thing: load a huge pile of accounts at startup. That process involves
+    // a very large number of behind-the-scenes requests. For "normal" DynamoDB usage (i.e. using DynamoDB as part of a
+    // process that fulfills requests from users), we'd want a retry policy that gives up after some reasonable amount
+    // of time or retries. Clients can retry their requests if they fail and don't wind up waiting on requests that can
+    // get bogged down for a long time.
+    //
+    // This is different. Loading accounts is a relatively long process, and we must complete it before the application
+    // can start serving requests. Giving up partway through is really not an option. We want to doggedly persist at
+    // loading accounts until the job is done no matter how long it takes and how many times we need to retry.
     return RetryPolicy.forRetryMode(RetryMode.ADAPTIVE)
-        .copy(builder -> builder.numRetries(accountTableConfiguration.getMaxRetries())
+        .copy(builder -> builder.numRetries(Integer.MAX_VALUE)
             .additionalRetryConditionsAllowed(false)
             .retryCapacityCondition(null)
-            .retryCondition(OrRetryCondition.create(RetryCondition.defaultRetryCondition(), new RetryOnProvisionedCapacityExceededCondition()))
+            .retryCondition(OrRetryCondition.create(RetryCondition.defaultRetryCondition(),
+                new RetryOnProvisionedCapacityExceededCondition()))
             .fastFailRateLimiting(false));
   }
 }
