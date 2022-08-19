@@ -1,0 +1,106 @@
+BASEDIR=$(abspath $(shell dirname $(lastword $(MAKEFILE_LIST))))
+
+SHELL=/bin/bash -o pipefail  # needed for pipefail
+OE_DIR ?= /opt/openenclave
+OE_INCLUDEDIR ?= $(OE_DIR)/include
+JAVA_HOME ?= /usr/lib/jvm/java-17-openjdk-amd64
+
+CC=clang-11
+
+### General ###
+
+# Warning flags are kept separate because they don't work for dependencies.
+WARNING_CFLAGS=\
+  -Wall \
+  -Wextra \
+  -Wno-unused-parameter \
+  -Werror \
+##WARNING_CFLAGS
+BASE_CFLAGS=\
+  $(ADDITIONAL_CFLAGS) \
+  -fPIC \
+  -Ibuild \
+  -I$(OE_INCLUDEDIR) \
+  -I$(BASEDIR)/noise-c/include \
+  -I$(BASEDIR)/SipHash \
+  -I$(JAVA_HOME)/include \
+  -I$(JAVA_HOME)/include/linux \
+  -iquote $(BASEDIR) \
+  -O3 \
+##BASE_CFLAGS
+
+UNTRUSTED_CC=$(CC)
+UNTRUSTED_CFLAGS= \
+  $(BASE_CFLAGS) \
+##UNTRUSTED_CFLAGS
+UNTRUSTED_LDFLAGS= \
+  -fPIC \
+  -lpthread \
+  -Wl,-z,noexecstack \
+  -g \
+##UNTRUSTED_LDFLAGS
+
+TRUSTED_CC=$(CC)
+TRUSTED_CFLAGS= \
+  $(BASE_CFLAGS) \
+  -DOE_API_VERSION=2 \
+  -DOE_BUILD_ENCLAVE \
+  -pthread \
+  -m64 \
+  -fstack-protector-strong \
+  -fvisibility=hidden \
+  -fno-omit-frame-pointer \
+  -ffunction-sections \
+  -fdata-sections \
+  -ftls-model=local-exec \
+##TRUSTED_CFLAGS
+TRUSTED_LDFLAGS=\
+  -fPIC \
+  -nostdlib \
+  -nodefaultlibs \
+  -nostartfiles \
+  -Wl,--no-undefined,-Bstatic,-Bsymbolic,--export-dynamic,-pie,--build-id \
+  -Wl,-z,noexecstack \
+  -Wl,-z,now \
+  -Wl,-gc-sections \
+  -Wl,-wrap=noise_rand_bytes \
+##TRUSTED_LDFLAGS
+
+TEST_CC=$(CC)
+TEST_CFLAGS= \
+  $(BASE_CFLAGS) \
+  -I$(JAVA_HOME)/include \
+  -I$(JAVA_HOME)/include/linux \
+  -DIS_TEST \
+  -DINSECURE \
+  -g \
+##TEST_CFLAGS
+TEST_LDFLAGS= \
+  -fPIC \
+  -lpthread \
+  -Wl,-z,noexecstack \
+  -lm \
+##TEST_LDFLAGS
+
+UNTRUSTED_TEST_CC=$(CC)
+UNTRUSTED_TEST_CFLAGS= \
+  $(BASE_CFLAGS) \
+  -DIS_TEST \
+  -DINSECURE \
+  -g \
+##UNTRUSTED_TEST_CFLAGS
+UNTRUSTED_TEST_LDFLAGS= \
+  -fPIC \
+  -lpthread \
+  -Wl,-z,noexecstack \
+##UNTRUSTED_TEST_LDFLAGS
+
+AFL_CC=afl-clang
+AFL_CFLAGS= \
+  $(BASE_CFLAGS) \
+##AFL_CFLAGS
+AFL_LDFLAGS= \
+  -fPIC \
+  -lpthread \
+  -lm \
+##AFL_LDFLAGS

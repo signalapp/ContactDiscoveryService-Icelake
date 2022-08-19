@@ -1,0 +1,16 @@
+micronaut:
+  executors:
+    enclave-jni:
+      number-of-threads: 1
+
+authentication:
+  # This shared secret is randomly-generated and is not actually shared with anything at all
+  sharedSecret: Dx9/dxgdVWPazjTqCD6nMdAwS7pnnA5GsiM+aN4pQok=
+
+enclave:
+  enclaveId: dev
+  availableEpcMemory: 32000000
+  loadFactor: 1.6
+  shards: 1
+  token-secret: supersecretsquirrel
+  simulated: true

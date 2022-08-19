@@ -1,0 +1,6 @@
+applicationType: default
+defaultPackage: org.signal.cdsi
+testFramework: junit
+sourceLanguage: java
+buildTool: maven
+features: [annotation-api, app-name, aws-v2-sdk, http-client, jackson-databind, java, java-application, junit, logback, management, maven, micrometer, micrometer-datadog, mockito, netty-server, readme, security, security-annotations, shade, yaml]

@@ -1,0 +1,20 @@
+micronaut:
+  executors:
+    enclave-jni:
+      number-of-threads: 1
+
+authentication:
+  sharedSecret: abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG=
+
+enclave:
+  enclaveId: test
+  availableEpcMemory: 3200000
+  loadFactor: 1.6
+  shards: 1
+  token-secret: supersecretsquirrel
+  simulated: true
+  return-acis-without-uaks: true
+
+logger:
+  levels:
+    org.signal: TRACE

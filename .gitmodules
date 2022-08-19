@@ -1,0 +1,6 @@
+[submodule "c/sgx/oram/src/SipHash"]
+	path = c/SipHash
+	url = https://github.com/veorq/SipHash
+[submodule "c/sgx/enclave/noise-c"]
+	path = c/noise-c
+	url = https://github.com/rweather/noise-c.git

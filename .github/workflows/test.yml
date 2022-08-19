@@ -1,0 +1,82 @@
+name: Service CI
+
+on: [push]
+
+jobs:
+  test-c:
+    name: Build and test C
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+      contents: read
+
+    steps:
+      - name: Checkout main project
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          path: cdsi
+
+      - name: Docker cache
+        uses: ./cdsi/.github/workflows/dockercache
+        with:
+          dockerdir: cdsi/c/docker
+          imagename: cdsi-enclave-build
+
+      - name: Build and test C
+        working-directory: cdsi/c
+        run: make docker_all docker_tests
+
+  valgrind-c:
+    name: Valgrind C
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+      contents: read
+ 
+    steps:
+      - name: Checkout main project
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          path: cdsi
+ 
+      - name: Docker cache
+        uses: ./cdsi/.github/workflows/dockercache
+        with:
+          dockerdir: cdsi/c/docker
+          imagename: cdsi-enclave-build
+
+      - name: Valgrind tests
+        working-directory: cdsi/c
+        run: make docker_valgrinds
+ 
+  test-service:
+    name: Build and test Java
+    runs-on: ubuntu-latest
+    permissions:
+      packages: read
+      contents: read
+ 
+    steps:
+      - name: Checkout main project
+        uses: actions/checkout@v3
+        with:
+          submodules: true
+          path: cdsi
+ 
+      - name: Set up JDK 17
+        uses: actions/setup-java@v2
+        with:
+          distribution: 'temurin'
+          java-version: 17
+          cache: 'maven'
+ 
+      - name: Docker cache
+        uses: ./cdsi/.github/workflows/dockercache
+        with:
+          dockerdir: cdsi/c/docker
+          imagename: cdsi-enclave-build
+
+      - name: Build and test with Maven
+        run: mvn -f cdsi/pom.xml -e -B verify

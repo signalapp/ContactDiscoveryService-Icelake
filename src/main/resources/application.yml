@@ -1,0 +1,45 @@
+micronaut:
+  application:
+    name: cdsi
+  executors:
+    enclave-jni:
+      type: fixed
+      # Note: this must never exceed `NumTCS` in `cds.conf`
+      number-of-threads: 1
+  metrics:
+    enabled: true
+    export:
+      statsd:
+        enabled: false
+  server:
+    netty:
+      # don't compress
+      compression-threshold: 1073741824  # 1G
+      compression-level: 0
+
+endpoints:
+  all:
+    port: 8081
+
+leakyBucketLimit:
+  connections:
+    bucket-size: 10
+    leak-rate-scalar: 10
+    leak-rate-duration: PT1M
+
+resilience4j:
+  circuitbreaker:
+    enabled: true
+    instances:
+      redis:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 10
+        permittedNumberOfCallsInHalfOpenState: 3
+        waitDurationInOpenState: PT3s
+        failureRateThreshold: 50
+
+tokenRateLimit:
+  # 6 permits/hr -> 52560 permits per year
+  bucket-size: 50000
+  leak-rate-scalar: 6
+  leak-rate-duration: PT1H

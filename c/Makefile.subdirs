@@ -1,0 +1,34 @@
+include ../Makefile.base
+
+trusted_%.o: %.c ../*/*.h
+	$(TRUSTED_CC) -c -o $@ $< $(TRUSTED_CFLAGS) $(WARNING_CFLAGS)
+
+libtrusted.a: $(patsubst %.c,trusted_%.o,$(wildcard *.c))
+	ar rcs $@ $^
+
+untrusted_%.o: %.c ../*/*.h
+	$(UNTRUSTED_CC) -c -o $@ $< $(UNTRUSTED_CFLAGS) $(WARNING_CFLAGS)
+
+libuntrusted.a: $(patsubst %.c,untrusted_%.o,$(wildcard *.c))
+	ar rcs $@ $^
+
+test_%.o: %.c ../*/*.h
+	$(TEST_CC) -c -o $@ $< $(TEST_CFLAGS) $(WARNING_CFLAGS)
+
+libtest.a: $(patsubst %.c,test_%.o,$(wildcard *.c))
+	ar rcs $@ $^
+
+testmain_%.o: tests/%.c ../*/*.h
+	$(TEST_CC) -c -o $@ $< $(TEST_CFLAGS) $(WARNING_CFLAGS)
+
+libtest_%.a: testmain_%.o
+	ar rcs $@ $^
+
+afl_%.o: %.c ../*/*.h
+	$(AFL_CC) -c -o $@ $< $(AFL_CFLAGS) $(WARNING_CFLAGS)
+
+libafl.a: $(patsubst %.c,afl_%.o,$(wildcard *.c))
+	ar rcs $@ $^
+
+clean:
+	rm -f *.o *.a *.test *.test.out *.test.valgrind
