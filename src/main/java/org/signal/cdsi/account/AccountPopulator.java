@@ -8,4 +8,6 @@ package org.signal.cdsi.account;
 public interface AccountPopulator {
 
   boolean hasFinishedInitialAccountPopulation();
+
+  boolean isHealthy();
 }

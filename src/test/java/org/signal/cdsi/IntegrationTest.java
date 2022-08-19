@@ -83,6 +83,11 @@ class IntegrationTest {
     public boolean hasFinishedInitialAccountPopulation() {
       return true;
     }
+
+    @Override
+    public boolean isHealthy() {
+      return true;
+    }
   }
 
   private static final long E164 = 0x01020304;

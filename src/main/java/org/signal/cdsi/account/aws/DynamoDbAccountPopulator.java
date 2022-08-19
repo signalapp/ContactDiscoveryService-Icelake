@@ -84,6 +84,7 @@ class DynamoDbAccountPopulator implements AccountPopulator, SubscribeToShardResp
   @Nullable
   private volatile String continuationSequenceNumber;
 
+  private volatile boolean healthy = true;
   private volatile boolean finishedInitialAccountPopulation;
   private volatile boolean shouldRenewSubscription;
 
@@ -167,6 +168,10 @@ class DynamoDbAccountPopulator implements AccountPopulator, SubscribeToShardResp
           shouldRenewSubscription = true;
           this.subscribeToShard();
         })
+        .doOnError(throwable -> {
+          logger.error("Failed to load account snapshot", throwable);
+          healthy = false;
+        })
         .subscribe(entries -> {
           enclave.loadData(entries, false).join();
           entriesFromTableCounter.increment(entries.size());
@@ -210,6 +215,11 @@ class DynamoDbAccountPopulator implements AccountPopulator, SubscribeToShardResp
   @Override
   public boolean hasFinishedInitialAccountPopulation() {
     return finishedInitialAccountPopulation;
+  }
+
+  @Override
+  public boolean isHealthy() {
+    return healthy;
   }
 
   @VisibleForTesting

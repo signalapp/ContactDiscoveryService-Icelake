@@ -82,4 +82,9 @@ public class RandomAccountPopulator implements AccountPopulator {
   public boolean hasFinishedInitialAccountPopulation() {
     return accountsPopulated.get();
   }
+
+  @Override
+  public boolean isHealthy() {
+    return true;
+  }
 }
