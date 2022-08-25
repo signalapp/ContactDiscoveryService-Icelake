@@ -28,7 +28,7 @@ import org.signal.cdsi.enclave.CdsiEnclaveException;
 import org.signal.cdsi.enclave.Enclave;
 import org.signal.cdsi.enclave.EnclaveClient;
 import org.signal.cdsi.enclave.EnclaveClient.State;
-import org.signal.cdsi.enclave.EnclaveException;
+import org.signal.cdsi.enclave.OpenEnclaveException;
 import org.signal.cdsi.limits.RateLimitExceededException;
 import org.signal.cdsi.util.CompletionExceptions;
 import org.slf4j.Logger;
@@ -46,6 +46,8 @@ public class WebSocketHandler {
   private static final String SESSION_TIMER_NAME = name(WebSocketHandler.class, "session");
   private static final String ENCLAVE_OP_TIMER_NAME = name(WebSocketHandler.class, "enclaveOperation");
   private static final String OPEN_WEBSOCKET_GAUGE_NAME = name(WebSocketHandler.class, "openWebsockets");
+  private static final String ENCLAVE_ERROR_CODES_COUNTER_NAME = name(WebSocketHandler.class, "enclaveErrorCodes");
+  private static final String ENCLAVE_ERROR_CODES_TAG_CODE = "code";
 
   private static final AtomicInteger OPEN_WEBSOCKET_COUNT = new AtomicInteger(0);
 
@@ -92,7 +94,13 @@ public class WebSocketHandler {
     } else if (cause instanceof IllegalArgumentException) {
       statusCode = 4003;
     } else if (cause instanceof CdsiEnclaveException enclaveException) {
+      meterRegistry.counter(ENCLAVE_ERROR_CODES_COUNTER_NAME, ENCLAVE_ERROR_CODES_TAG_CODE,
+          "cdsi_" + enclaveException.getCode()).increment();
       statusCode = statusCodeFromCdsiEnclaveException(enclaveException);
+    } else if (cause instanceof OpenEnclaveException enclaveException) {
+      meterRegistry.counter(ENCLAVE_ERROR_CODES_COUNTER_NAME, ENCLAVE_ERROR_CODES_TAG_CODE,
+          "oe_" + enclaveException.getCode()).increment();
+      statusCode = 4013;
     } else {
       statusCode = 4013;
     }
