@@ -82,9 +82,11 @@ public class WebSocketHandler {
       return client.retryResponse((int) rle.getRetryDuration().toSeconds())
           .thenCompose(session::sendAsync)
           .thenAccept(ignore -> this.close(session, new CloseReason(4008, "Rate limit exceeded")));
+    } else if (cause instanceof ClosedEarlyException) {
+      logger.debug("Websocket for session {} closed early", session.getId());
+    } else {
+      logger.warn("Closing websocket session {} erroneously", session.getId(), cause);
     }
-
-    logger.warn("Closing websocket session {} erroneously", session.getId(), cause);
 
     final int statusCode;
 
