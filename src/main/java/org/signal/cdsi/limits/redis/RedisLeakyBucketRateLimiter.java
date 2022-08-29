@@ -9,6 +9,7 @@ import static org.signal.cdsi.util.MetricsUtil.name;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.github.resilience4j.micronaut.annotation.CircuitBreaker;
+import io.github.resilience4j.micronaut.annotation.Retry;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -78,10 +79,15 @@ public class RedisLeakyBucketRateLimiter implements LeakyBucketRateLimiter {
     }
   }
 
+  @Retry(name = "redis")
   @CircuitBreaker(name = "redis")
   CompletableFuture<Object> executeScript(final List<String> keys, final List<String> args) {
-    return redisClusterConnection.async().evalsha(sha, ScriptOutputType.INTEGER, keys.toArray(STRING_ARRAY), args.toArray(STRING_ARRAY)).toCompletableFuture()
-        .exceptionallyCompose(throwable -> redisClusterConnection.async().eval(script, ScriptOutputType.INTEGER, keys.toArray(STRING_ARRAY), args.toArray(STRING_ARRAY)).toCompletableFuture());
+    return redisClusterConnection.async()
+        .evalsha(sha, ScriptOutputType.INTEGER, keys.toArray(STRING_ARRAY), args.toArray(STRING_ARRAY))
+        .toCompletableFuture()
+        .exceptionallyCompose(throwable -> redisClusterConnection.async()
+            .eval(script, ScriptOutputType.INTEGER, keys.toArray(STRING_ARRAY), args.toArray(STRING_ARRAY))
+            .toCompletableFuture());
   }
 
   @Override
@@ -108,6 +114,14 @@ public class RedisLeakyBucketRateLimiter implements LeakyBucketRateLimiter {
             // always be smaller than bucket size
             throw new CompletionException(new RateLimitExceededException(retryDuration));
           }
+          return null;
+        })
+        .exceptionally(e -> {
+          if (e instanceof CompletionException ce && ce.getCause() instanceof RateLimitExceededException) {
+            throw ce;
+          }
+          // If the leaky bucket data store is unavailable, allow the request to proceed. This is just a rate limit
+          // for connections, and the more critical token rate limit will still be enforced.
           return null;
         })
         .thenRun(() -> validateTimer.record(Duration.between(start, clock.instant())));

@@ -42,6 +42,14 @@ resilience4j:
         permittedNumberOfCallsInHalfOpenState: 3
         waitDurationInOpenState: PT3s
         failureRateThreshold: 50
+  retry:
+    enabled: true
+    instances:
+      redis:
+        max-attempts: 3
+        enable-exponential-backoff: true
+        enable-randomized-wait: true
+        wait-duration: PT0.5S
 
 tokenRateLimit:
   # 6 permits/hr -> 52560 permits per year
