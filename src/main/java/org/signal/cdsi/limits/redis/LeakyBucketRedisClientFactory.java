@@ -7,6 +7,7 @@ package org.signal.cdsi.limits.redis;
 
 import io.lettuce.core.ClientOptions.DisconnectedBehavior;
 import io.lettuce.core.RedisURI;
+import io.lettuce.core.TimeoutOptions;
 import io.lettuce.core.cluster.ClusterClientOptions;
 import io.lettuce.core.cluster.ClusterTopologyRefreshOptions;
 import io.lettuce.core.cluster.RedisClusterClient;
@@ -23,6 +24,7 @@ import io.micronaut.context.annotation.Requires;
 import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import java.net.URI;
+import java.time.Duration;
 import java.util.List;
 
 @Requires(property = "redisLeakyBucket.urls")
@@ -57,6 +59,10 @@ class LeakyBucketRedisClientFactory {
     final RedisClusterClient redisClusterClient = RedisClusterClient.create(clientResources, redisURIs);
 
     redisClusterClient.setOptions(ClusterClientOptions.builder()
+        .timeoutOptions(TimeoutOptions.builder()
+            .timeoutCommands(true)
+            .fixedTimeout(Duration.ofSeconds(3))
+            .build())
         .disconnectedBehavior(DisconnectedBehavior.REJECT_COMMANDS)
         .validateClusterNodeMembership(false)
         .topologyRefreshOptions(ClusterTopologyRefreshOptions.builder()
