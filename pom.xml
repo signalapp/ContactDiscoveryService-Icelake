@@ -99,6 +99,10 @@
       <version>${resilience4j.version}</version>
     </dependency>
     <dependency>
+      <groupId>io.lettuce</groupId>
+      <artifactId>lettuce-core</artifactId>
+    </dependency>
+    <dependency>
       <groupId>io.micronaut</groupId>
       <artifactId>micronaut-http-server-netty</artifactId>
     </dependency>
@@ -121,10 +125,6 @@
     <dependency>
       <groupId>io.micronaut.micrometer</groupId>
       <artifactId>micronaut-micrometer-registry-statsd</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.micronaut.redis</groupId>
-      <artifactId>micronaut-redis-lettuce</artifactId>
     </dependency>
     <dependency>
       <groupId>io.micronaut</groupId>

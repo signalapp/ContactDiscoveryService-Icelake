@@ -18,6 +18,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micronaut.context.annotation.EachBean;
 import io.micronaut.context.annotation.Requires;
+import jakarta.inject.Named;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -53,7 +54,7 @@ public class RedisLeakyBucketRateLimiter implements LeakyBucketRateLimiter {
 
   private static final String[] STRING_ARRAY = new String[0];
 
-  public RedisLeakyBucketRateLimiter(final StatefulRedisClusterConnection<String, String> redisClusterConnection,
+  public RedisLeakyBucketRateLimiter(@Named(LeakyBucketRedisClientFactory.CONNECTION_NAME) final StatefulRedisClusterConnection<String,String> redisClusterConnection,
       final LeakyBucketRateLimitConfiguration configuration,
       final MeterRegistry meterRegistry,
       final Clock clock) throws IOException {
