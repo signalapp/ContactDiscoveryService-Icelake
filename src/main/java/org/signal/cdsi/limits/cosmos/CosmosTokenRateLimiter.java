@@ -401,6 +401,7 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
         })
 
         .doOnError(ex -> {
+          ex = CompletionExceptions.unwrap(ex);
           if (ex instanceof RateLimitExceededException) {
             meterRegistry.counter(validateCounterName, "outcome", "rateLimitExceeded").increment();
           } else if (ex instanceof ConflictException) {
