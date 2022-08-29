@@ -10,6 +10,8 @@ import static org.signal.cdsi.util.MetricsUtil.name;
 import com.google.common.annotations.VisibleForTesting;
 import io.github.resilience4j.micronaut.annotation.CircuitBreaker;
 import io.github.resilience4j.micronaut.annotation.Retry;
+import io.lettuce.core.RedisException;
+import io.lettuce.core.RedisNoScriptException;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -85,9 +87,16 @@ public class RedisLeakyBucketRateLimiter implements LeakyBucketRateLimiter {
     return redisClusterConnection.async()
         .evalsha(sha, ScriptOutputType.INTEGER, keys.toArray(STRING_ARRAY), args.toArray(STRING_ARRAY))
         .toCompletableFuture()
-        .exceptionallyCompose(throwable -> redisClusterConnection.async()
-            .eval(script, ScriptOutputType.INTEGER, keys.toArray(STRING_ARRAY), args.toArray(STRING_ARRAY))
-            .toCompletableFuture());
+        .exceptionallyCompose(throwable -> {
+          if (throwable instanceof RedisNoScriptException) {
+            return redisClusterConnection.async()
+                .eval(script, ScriptOutputType.INTEGER, keys.toArray(STRING_ARRAY), args.toArray(STRING_ARRAY));
+          } else if (throwable instanceof final RedisException redisException) {
+            throw redisException;
+          }
+
+          throw new RedisException(throwable);
+        }).toCompletableFuture();
   }
 
   @Override
