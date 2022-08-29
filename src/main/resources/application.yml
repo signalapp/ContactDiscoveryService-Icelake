@@ -17,6 +17,11 @@ micronaut:
       compression-threshold: 1073741824  # 1G
       compression-level: 0
 
+logger:
+  levels:
+    # The Cosmos client is pretty chatty
+    com.azure.cosmos: WARN
+
 endpoints:
   all:
     port: 8081
