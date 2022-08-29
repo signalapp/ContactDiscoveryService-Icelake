@@ -9,6 +9,7 @@ import static org.signal.cdsi.util.MetricsUtil.name;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.security.authentication.AuthenticationFailureReason;
 import io.micronaut.security.authentication.AuthenticationProvider;
@@ -23,6 +24,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
 import javax.annotation.Nullable;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -30,6 +32,7 @@ import org.apache.commons.codec.DecoderException;
 import org.apache.commons.codec.binary.Hex;
 import org.reactivestreams.Publisher;
 import org.signal.cdsi.limits.LeakyBucketRateLimiter;
+import org.signal.cdsi.util.UserAgentUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
@@ -86,7 +89,8 @@ public class ExternalServiceTokenAuthenticationProvider implements Authenticatio
   @Override
   public Publisher<AuthenticationResponse> authenticate(@Nullable HttpRequest<?> httpRequest,
       AuthenticationRequest<?, ?> authenticationRequest) {
-
+    final Tag platformTag = UserAgentUtil.platformFromHeader(
+        httpRequest == null ? null : httpRequest.getHeaders().get("user-agent"));
     return Mono.create(mono -> {
       try {
         final String username = (String) authenticationRequest.getIdentity();
@@ -95,41 +99,42 @@ public class ExternalServiceTokenAuthenticationProvider implements Authenticatio
         if (isValid(username, timestampAndSignature.timestamp(), timestampAndSignature.signature())) {
           rateLimiter.validate(username, 1).whenComplete((unused, err) -> {
             if (err != null) {
-              incrementAuthenticationFailureCounter("rate_limit_exceeded");
+              incrementAuthenticationFailureCounter("rate_limit_exceeded", platformTag);
               mono.error(err);
             } else {
-              incrementAuthenticationSuccessCounter();
+              incrementAuthenticationSuccessCounter(platformTag);
               mono.success(AuthenticationResponse.success(username));
             }
           });
         } else {
-          incrementAuthenticationFailureCounter(AuthenticationFailureReason.CREDENTIALS_DO_NOT_MATCH);
+          incrementAuthenticationFailureCounter(AuthenticationFailureReason.CREDENTIALS_DO_NOT_MATCH, platformTag);
           mono.error(AuthenticationResponse.exception(AuthenticationFailureReason.CREDENTIALS_DO_NOT_MATCH));
         }
       } catch (final Exception e) {
         log.warn("Unexpected authentication exception", e);
 
-        incrementAuthenticationFailureCounter(AuthenticationFailureReason.UNKNOWN);
+        incrementAuthenticationFailureCounter(AuthenticationFailureReason.UNKNOWN, platformTag);
         mono.error(AuthenticationResponse.exception(AuthenticationFailureReason.UNKNOWN));
       }
     });
   }
 
-  private void incrementAuthenticationSuccessCounter() {
-    meterRegistry.counter(AUTHENTICATION_COUNTER_NAME,
-            OUTCOME_TAG_NAME, "success")
-        .increment();
+  private void incrementAuthenticationSuccessCounter(Tag platformTag) {
+    meterRegistry.counter(AUTHENTICATION_COUNTER_NAME, List.of(
+        Tag.of(OUTCOME_TAG_NAME, "success"), platformTag)).increment();
   }
 
-  private void incrementAuthenticationFailureCounter(final AuthenticationFailureReason authenticationFailureReason) {
-    incrementAuthenticationFailureCounter(authenticationFailureReason.name().toLowerCase());
+  private void incrementAuthenticationFailureCounter(
+      final AuthenticationFailureReason authenticationFailureReason, Tag platformTag) {
+    incrementAuthenticationFailureCounter(authenticationFailureReason.name().toLowerCase(), platformTag);
   }
 
-  private void incrementAuthenticationFailureCounter(final String reason) {
+  private void incrementAuthenticationFailureCounter(final String reason, Tag platformTag) {
     meterRegistry.counter(AUTHENTICATION_COUNTER_NAME,
-            OUTCOME_TAG_NAME, "failure",
-            FAILURE_REASON_TAG_NAME, reason)
-        .increment();
+        List.of(
+            Tag.of(OUTCOME_TAG_NAME, "failure"),
+            Tag.of(FAILURE_REASON_TAG_NAME, reason),
+            platformTag)).increment();
   }
 
   private boolean isValid(final String username, final Instant timestamp, final byte[] signature) {

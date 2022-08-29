@@ -28,6 +28,7 @@ import org.junit.jupiter.api.extension.ExtensionContext;
 import redis.embedded.RedisServer;
 
 public class RedisClusterExtension implements BeforeAllCallback, BeforeEachCallback, AfterAllCallback, AfterEachCallback {
+  private static final int CLUSTER_STARTUP_TIMEOUT_MILLIS = 30000;
 
   public static RedisClusterExtensionBuilder builder() {
     return new RedisClusterExtensionBuilder();
@@ -145,7 +146,7 @@ public class RedisClusterExtension implements BeforeAllCallback, BeforeEachCallb
         Thread.sleep(sleepMillis);
         tries++;
 
-        if (tries == 10) {
+        if (tries == CLUSTER_STARTUP_TIMEOUT_MILLIS / sleepMillis) {
           throw new RuntimeException(
               String.format("Timeout: Redis not ready after waiting %d milliseconds", tries * sleepMillis));
         }

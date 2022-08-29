@@ -9,8 +9,10 @@ import static org.signal.cdsi.util.MetricsUtil.name;
 
 import io.micrometer.core.annotation.Counted;
 import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Tag;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.Timer.Sample;
+import io.micronaut.http.annotation.Header;
 import io.micronaut.runtime.http.scope.RequestScope;
 import io.micronaut.security.annotation.Secured;
 import io.micronaut.security.rules.SecurityRule;
@@ -22,6 +24,7 @@ import io.micronaut.websocket.annotation.OnOpen;
 import io.micronaut.websocket.annotation.ServerWebSocket;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.signal.cdsi.enclave.CdsiEnclaveException;
@@ -31,8 +34,10 @@ import org.signal.cdsi.enclave.EnclaveClient.State;
 import org.signal.cdsi.enclave.OpenEnclaveException;
 import org.signal.cdsi.limits.RateLimitExceededException;
 import org.signal.cdsi.util.CompletionExceptions;
+import org.signal.cdsi.util.UserAgentUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import javax.annotation.Nullable;
 
 @Secured(SecurityRule.IS_AUTHENTICATED)
 @ServerWebSocket("/v1/{enclaveId}/discovery")
@@ -55,6 +60,7 @@ public class WebSocketHandler {
   private EnclaveClient client;
   private final MeterRegistry meterRegistry;
   private String userId;
+  private Tag platformTag;
 
   // `chain` is an in-order chain of events done by this websocket.  Each websocket
   // action (open, message, close) resets the chain by adding steps to it.  This
@@ -96,12 +102,12 @@ public class WebSocketHandler {
     } else if (cause instanceof IllegalArgumentException) {
       statusCode = 4003;
     } else if (cause instanceof CdsiEnclaveException enclaveException) {
-      meterRegistry.counter(ENCLAVE_ERROR_CODES_COUNTER_NAME, ENCLAVE_ERROR_CODES_TAG_CODE,
-          "cdsi_" + enclaveException.getCode()).increment();
+      meterRegistry.counter(ENCLAVE_ERROR_CODES_COUNTER_NAME, List.of(
+          Tag.of(ENCLAVE_ERROR_CODES_TAG_CODE, "cdsi_" + enclaveException.getCode()), platformTag)).increment();
       statusCode = statusCodeFromCdsiEnclaveException(enclaveException);
     } else if (cause instanceof OpenEnclaveException enclaveException) {
-      meterRegistry.counter(ENCLAVE_ERROR_CODES_COUNTER_NAME, ENCLAVE_ERROR_CODES_TAG_CODE,
-          "oe_" + enclaveException.getCode()).increment();
+      meterRegistry.counter(ENCLAVE_ERROR_CODES_COUNTER_NAME, List.of(
+          Tag.of(ENCLAVE_ERROR_CODES_TAG_CODE, "oe_" + enclaveException.getCode()), platformTag)).increment();
       statusCode = 4013;
     } else {
       statusCode = 4013;
@@ -134,11 +140,12 @@ public class WebSocketHandler {
 
   @OnOpen
   @Counted("cdsi.WebSocketHandler.onOpen.count")
-  public void onOpen(final WebSocketSession session, String enclaveId) {
+  public void onOpen(final WebSocketSession session, String enclaveId, @Nullable @Header("User-Agent") String userAgentString) {
     logger.trace("Opening websocket session for {} for enclave={}", session.getId(), enclaveId);
     OPEN_WEBSOCKET_COUNT.incrementAndGet();
 
     this.userId = session.getUserPrincipal().get().getName();
+    this.platformTag = UserAgentUtil.platformFromHeader(userAgentString);
     this.sessionSample = Timer.start();
     chain = chain
         .thenCompose(v -> enclave.newClient(userId))
