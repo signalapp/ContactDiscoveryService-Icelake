@@ -9,7 +9,7 @@ package org.signal.cdsi.enclave;
  * An Open Enclave exception represents an error reported by the <a href="https://openenclave.io/sdk/">Open Enclave</a>
  * layer of the CDSI application.
  */
-public class OpenEnclaveException extends Exception {
+public class OpenEnclaveException extends EnclaveException {
   private final String function;
 
   private final String codeName;

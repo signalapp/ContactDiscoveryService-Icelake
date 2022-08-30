@@ -32,6 +32,7 @@ import org.signal.cdsi.enclave.CdsiEnclaveException;
 import org.signal.cdsi.enclave.Enclave;
 import org.signal.cdsi.enclave.EnclaveClient;
 import org.signal.cdsi.enclave.EnclaveClient.State;
+import org.signal.cdsi.enclave.EnclaveException;
 import org.signal.cdsi.enclave.OpenEnclaveException;
 import org.signal.cdsi.limits.RateLimitExceededException;
 import org.signal.cdsi.util.CompletionExceptions;
@@ -91,6 +92,8 @@ public class WebSocketHandler {
           .thenAccept(ignore -> this.close(session, new CloseReason(4008, "Rate limit exceeded")));
     } else if (cause instanceof ClosedEarlyException) {
       logger.debug("Websocket for session {} closed early", session.getId());
+    } else if (cause instanceof EnclaveException) {
+      logger.debug("Websocket for session {} closed due to enclave exception", session.getId(), cause);
     } else {
       logger.warn("Closing websocket session {} erroneously", session.getId(), cause);
     }
