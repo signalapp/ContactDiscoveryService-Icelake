@@ -10,6 +10,7 @@ import static org.signal.cdsi.util.MetricsUtil.name;
 import io.micrometer.core.annotation.Counted;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
+import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.Timer;
 import io.micrometer.core.instrument.Timer.Sample;
 import io.micronaut.http.annotation.Header;
@@ -193,9 +194,7 @@ public class WebSocketHandler {
 
     chain = chain
         .thenCompose(v -> closeWithError(session, new ClosedEarlyException()))
-        .thenAccept(ignored -> {
-          sessionSample.stop(meterRegistry.timer(SESSION_TIMER_NAME));
-        });
+        .thenAccept(ignored -> sessionSample.stop(meterRegistry.timer(SESSION_TIMER_NAME, Tags.of(platformTag))));
     // We use whenComplete to make sure that even if issues arise with other parts of processing,
     // the closeAsync method will be called.  Note also that we don't check for or wait for it to
     // complete, we just start it.
