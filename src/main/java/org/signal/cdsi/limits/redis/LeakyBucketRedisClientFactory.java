@@ -27,10 +27,11 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 
-@Requires(property = "redisLeakyBucket.urls")
+@Requires(property = LeakyBucketRedisClientFactory.URLS)
 @Factory
 class LeakyBucketRedisClientFactory {
 
+  static final String URLS = "redis-leaky-bucket.urls";
   private static final String CLIENT_NAME = "redisLeakyBucketClient";
   public static final String CONNECTION_NAME = "redisLeakyBucketConnection";
 
@@ -44,7 +45,7 @@ class LeakyBucketRedisClientFactory {
   @Named(CLIENT_NAME)
   @Bean(preDestroy = "shutdown")
   @Singleton
-  RedisClusterClient redisClusterClient(@Property(name = "redisLeakyBucket.urls") final List<URI> uris) {
+  RedisClusterClient redisClusterClient(@Property(name = URLS) final List<URI> uris) {
     if (uris.isEmpty()) {
       throw new IllegalArgumentException("Redis URLs most not be empty");
     }
