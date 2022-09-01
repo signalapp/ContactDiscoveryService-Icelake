@@ -7,6 +7,7 @@ package org.signal.cdsi.limits.redis;
 
 import static org.signal.cdsi.util.MetricsUtil.name;
 
+import com.google.common.annotations.VisibleForTesting;
 import io.github.resilience4j.micronaut.annotation.CircuitBreaker;
 import io.lettuce.core.ScriptOutputType;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
@@ -87,7 +88,7 @@ public class RedisLeakyBucketRateLimiter implements LeakyBucketRateLimiter {
   public CompletableFuture<Void> validate(final String key, final int amount) {
     final Instant start = clock.instant();
     final double leakRatePerMillis = (double)configuration.getLeakRateScalar() / configuration.getLeakRateDuration().toMillis();
-    final List<String> keys = List.of(getBucketName(key));
+    final List<String> keys = List.of(getBucketKey(key));
     final List<String> arguments = List.of(
         String.valueOf(configuration.getBucketSize()),
         String.valueOf(leakRatePerMillis),
@@ -112,7 +113,8 @@ public class RedisLeakyBucketRateLimiter implements LeakyBucketRateLimiter {
         .thenRun(() -> validateTimer.record(Duration.between(start, clock.instant())));
   }
 
-  private String getBucketName(String key) {
+  @VisibleForTesting
+  String getBucketKey(String key) {
     return "leaky_bucket::" + configuration.getName() + "::" + key;
   }
 }
