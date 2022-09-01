@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
 import org.signal.cdsi.account.AccountPopulator;
 import org.signal.cdsi.enclave.DirectoryEntry;
@@ -240,7 +239,7 @@ class DynamoDbAccountPopulator implements AccountPopulator, SubscribeToShardResp
           .build();
 
       segmentPublishers.add(Flux.from(dynamoDbAsyncClient.scanPaginator(scanRequest).items())
-          .map(DynamoDbAccountPopulator::directoryEntryFromItem));
+          .mapNotNull(DynamoDbAccountPopulator::directoryInsertEntryFromItem));
     }
 
     // Shuffle the list to make it less likely that we'll have two consumers trying ot read the same segments at the
@@ -250,12 +249,18 @@ class DynamoDbAccountPopulator implements AccountPopulator, SubscribeToShardResp
     return Flux.merge(segmentPublishers);
   }
 
-  private static DirectoryEntry directoryEntryFromItem(final Map<String, AttributeValue> item) {
+  /**
+   * If the item attributes indicate the account is canonically discoverable, returns a {@code DirectoryEntry},
+   * else {@code null}.
+   * <br>
+   * Note: should only be used for the initial directory load, when there is no point in sending a deletion entry,
+   * as the entry does not exist
+   */
+  @Nullable
+  private static DirectoryEntry directoryInsertEntryFromItem(final Map<String, AttributeValue> item) {
     final long e164 = e164FromString(item.get(ATTR_ACCOUNT_E164).s());
     final boolean canonicallyDiscoverable = item.containsKey(ATTR_CANONICALLY_DISCOVERABLE) &&
         item.get(ATTR_CANONICALLY_DISCOVERABLE).bool();
-
-    final DirectoryEntry directoryEntry;
 
     if (canonicallyDiscoverable) {
       final byte[] aci = item.get(KEY_ACCOUNT_UUID).b().asByteArray();
@@ -263,12 +268,10 @@ class DynamoDbAccountPopulator implements AccountPopulator, SubscribeToShardResp
       final byte[] uak = item.containsKey(ATTR_UAK) && item.get(ATTR_UAK).b() != null ?
           item.get(ATTR_UAK).b().asByteArray() : null;
 
-      directoryEntry = new DirectoryEntry(e164, aci, pni, uak);
+      return new DirectoryEntry(e164, aci, pni, uak);
     } else {
-      directoryEntry = DirectoryEntry.deletionEntry(e164);
+      return null;
     }
-
-    return directoryEntry;
   }
 
   @VisibleForTesting

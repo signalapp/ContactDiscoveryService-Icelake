@@ -38,7 +38,6 @@ import org.mockito.ArgumentCaptor;
 import org.signal.cdsi.enclave.DirectoryEntry;
 import org.signal.cdsi.enclave.Enclave;
 import org.signal.cdsi.util.UUIDUtil;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import software.amazon.awssdk.core.SdkBytes;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
@@ -102,22 +101,24 @@ class DynamoDbAccountPopulatorTest {
 
   @Test
   void getAccountSnapshot() {
-    final Set<DirectoryEntry> expectedEntries = insertRandomAccounts(1000).stream()
+    final Set<DirectoryEntry> expectedEntries = insertRandomAccounts(1000, true).stream()
         .map(DynamoDbAccountPopulatorTest::directoryEntryFromAccount)
         .collect(Collectors.toSet());
 
-    final List<DirectoryEntry> retrievedEntries = Flux.from(accountPopulator.getAccountSnapshot()).collectList()
+    insertRandomAccounts(500, false);
+
+    final List<DirectoryEntry> retrievedEntries = accountPopulator.getAccountSnapshot().collectList()
         .block();
 
     assertNotNull(retrievedEntries);
     assertEquals(expectedEntries, new HashSet<>(retrievedEntries));
   }
 
-  private List<Account> insertRandomAccounts(@SuppressWarnings("SameParameterValue") final int accounts) {
+  private List<Account> insertRandomAccounts(final int accounts, final boolean canonicallyDiscoverable) {
     final List<Account> insertedAccounts = new ArrayList<>(accounts);
 
     for (int i = 0; i < accounts; i++) {
-      final Account account = generateRandomAccount();
+      final Account account = generateRandomAccount(canonicallyDiscoverable);
       assert account.uak() != null;
 
       insertedAccounts.add(account);
@@ -149,7 +150,7 @@ class DynamoDbAccountPopulatorTest {
     final List<Record> records = new ArrayList<>();
 
     for (int i = 0; i < 10; i++) {
-      final Account account = generateRandomAccount();
+      final Account account = generateRandomAccount(true);
       accounts.add(account);
       records.add(Record.builder()
           .sequenceNumber(String.valueOf(i))
@@ -216,11 +217,11 @@ class DynamoDbAccountPopulatorTest {
         account.uak());
   }
 
-  private Account generateRandomAccount() {
+  private Account generateRandomAccount(final boolean canonicallyDiscoverable) {
     final byte[] uak = new byte[16];
     random.nextBytes(uak);
 
-    return new Account(++nextE164, UUID.randomUUID(), UUID.randomUUID(), uak, true);
+    return new Account(++nextE164, UUID.randomUUID(), UUID.randomUUID(), uak, canonicallyDiscoverable);
   }
 
   @Test
