@@ -10,7 +10,6 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -37,14 +36,16 @@ import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.signal.cdsi.enclave.Enclave;
 import org.signal.cdsi.limits.RateLimitExceededException;
 
 // This tests the @Retry and @CircuitBreaker, since those are only enabled through Micronaut
 @MicronautTest
-@Property(name = "resilience4j.retry.instances.redis.max-attempts", value = "2")
-@Property(name = "resilience4j.retry.instances.redis.wait-duration", value = "PT0.001S")
+@Property(name = "resilience4j.retry.instances.redis.max-attempts", value = RedisLeakyBucketRateLimiterIntegrationTest.RETRIES)
+// 2ms is the minimum for wait-duration, else retry wait randomization could lead to a 0ms delay, which means “no retry”
+@Property(name = "resilience4j.retry.instances.redis.wait-duration", value = "PT0.002S")
 public class RedisLeakyBucketRateLimiterIntegrationTest {
-
+  static final String RETRIES = "2";
   private RedisCommand<String, String, Object> noOverflow;
   private RedisCommand<String, String, Object> overflow;
 
@@ -113,7 +114,7 @@ public class RedisLeakyBucketRateLimiterIntegrationTest {
       limiter.validate(aci, 1).join();
     });
 
-    verify(mockConnection, atLeast(2)).async();
+    verify(mockConnection, times(Integer.parseInt(RETRIES))).async();
   }
 
 }
