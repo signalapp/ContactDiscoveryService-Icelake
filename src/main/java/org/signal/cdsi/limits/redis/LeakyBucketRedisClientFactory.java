@@ -62,7 +62,7 @@ class LeakyBucketRedisClientFactory {
     redisClusterClient.setOptions(ClusterClientOptions.builder()
         .timeoutOptions(TimeoutOptions.builder()
             .timeoutCommands(true)
-            .fixedTimeout(Duration.ofSeconds(3))
+            .fixedTimeout(Duration.ofMillis(500))
             .build())
         .disconnectedBehavior(DisconnectedBehavior.REJECT_COMMANDS)
         .validateClusterNodeMembership(false)
