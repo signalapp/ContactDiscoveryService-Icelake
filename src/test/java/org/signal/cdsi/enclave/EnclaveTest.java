@@ -114,6 +114,17 @@ class EnclaveTest {
     enclave.loadData(entries, true).join();
 
     assertEquals(expectedEntries + SHARD_COUNT, Enclave.getEntryCount(enclave.getTableStatistics().join()));
+    assertEquals(expectedEntries, enclave.activeEntries.get());
+
+    final List<DirectoryEntry> deletedEntires = entries.stream()
+        .filter(e -> e.e164() % 2 == 0)
+        .map(e -> DirectoryEntry.deletionEntry(e.e164()))
+        .toList();
+
+    enclave.loadData(deletedEntires, false).join();
+
+    assertEquals(expectedEntries + SHARD_COUNT, Enclave.getEntryCount(enclave.getTableStatistics().join()));
+    assertEquals(expectedEntries - deletedEntires.size(), enclave.activeEntries.get());
   }
 
   @Test

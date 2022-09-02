@@ -16,7 +16,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
 import io.micrometer.core.instrument.TimeGauge;
 import io.micronaut.context.annotation.Context;
-import io.micronaut.context.annotation.Value;
 import io.micronaut.scheduling.annotation.Scheduled;
 import jakarta.inject.Named;
 import java.io.File;
@@ -42,15 +41,17 @@ import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.stream.LongStream;
 import org.signal.cdsi.limits.TokenRateLimiter;
 import org.signal.cdsi.proto.EnclaveLoad;
 import org.signal.cdsi.proto.TableStatistics;
+import org.signal.libsignal.cds2.AttestationDataException;
+import org.signal.libsignal.cds2.Cds2Metrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.signal.libsignal.cds2.*;
 
 @Context
 public class Enclave implements AutoCloseable {
@@ -72,6 +73,8 @@ public class Enclave implements AutoCloseable {
 
   private final AtomicReference<Instant> lastAttestationTimestamp = new AtomicReference<>();
   private final AtomicInteger openClientCount;
+  @VisibleForTesting
+  final AtomicLong activeEntries;
   private final long capacity;
 
   private final DistributionSummary requestSizeDistributionSummary;
@@ -152,6 +155,7 @@ public class Enclave implements AutoCloseable {
 
     this.requestSizeDistributionSummary = meterRegistry.summary(name(getClass(), "requestSize"));
     this.openClientCount = meterRegistry.gauge(name(getClass(), "openClients"), new AtomicInteger(0));
+    this.activeEntries = meterRegistry.gauge(name(getClass(), "activeEntries"), new AtomicLong(0));
 
     this.capacity = getCapacity(getTableStatistics().join());
 
@@ -288,6 +292,11 @@ public class Enclave implements AutoCloseable {
       entries.forEach(entry -> {
         try {
           entry.writeTo(triples);
+          if (entry.isDeletion()) {
+            activeEntries.decrementAndGet();
+          } else {
+            activeEntries.incrementAndGet();
+          }
         } catch (InvalidEntryException e) {
           logger.warn("Invalid entry received", e);
         }
