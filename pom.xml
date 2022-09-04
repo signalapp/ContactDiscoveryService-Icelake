@@ -17,9 +17,9 @@
     <packaging>jar</packaging>
     <jdk.version>17</jdk.version>
     <release.version>17</release.version>
-    <micronaut.version>3.6.1</micronaut.version>
-    <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
+    <micronaut.version>${pom.parent.version}</micronaut.version>
     <micronaut.runtime>netty</micronaut.runtime>
+    <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
 
     <aws.sdk.version>2.17.228</aws.sdk.version>
     <commons.codec.version>1.15</commons.codec.version>
