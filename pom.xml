@@ -24,7 +24,6 @@
     <aws.sdk.version>2.17.228</aws.sdk.version>
     <commons.codec.version>1.15</commons.codec.version>
     <guava.version>31.1-jre</guava.version>
-    <resilience4j.version>1.7.0</resilience4j.version>
   </properties>
 
   <repositories>
@@ -41,14 +40,6 @@
 
   <dependencyManagement>
     <dependencies>
-      <dependency>
-        <groupId>io.github.resilience4j</groupId>
-        <artifactId>resilience4j-bom</artifactId>
-        <version>${resilience4j.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>bom</artifactId>
@@ -79,24 +70,6 @@
       <groupId>commons-codec</groupId>
       <artifactId>commons-codec</artifactId>
       <version>${commons.codec.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>io.github.resilience4j</groupId>
-      <artifactId>resilience4j-circuitbreaker</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.github.resilience4j</groupId>
-      <artifactId>resilience4j-consumer</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.github.resilience4j</groupId>
-      <artifactId>resilience4j-micrometer</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>io.github.resilience4j</groupId>
-      <artifactId>resilience4j-micronaut</artifactId>
-      <!-- Note that resilience4j-micronaut is not included in the resilience4j bom and so needs an explicit version -->
-      <version>${resilience4j.version}</version>
     </dependency>
     <dependency>
       <groupId>io.lettuce</groupId>
@@ -141,14 +114,6 @@
     <dependency>
       <groupId>io.projectreactor</groupId>
       <artifactId>reactor-core</artifactId>
-    </dependency>
-    <!-- This is required by resilience4j, which doesn't declare at as a dependency.
-      A fix has been merged for resilience4j 2.x: https://github.com/resilience4j/resilience4j/issues/1485
-      -->
-    <dependency>
-      <groupId>io.reactivex.rxjava2</groupId>
-      <artifactId>rxjava</artifactId>
-      <version>2.2.21</version>
     </dependency>
     <dependency>
       <groupId>jakarta.annotation</groupId>

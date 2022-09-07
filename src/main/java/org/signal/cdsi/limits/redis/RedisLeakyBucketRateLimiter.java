@@ -8,8 +8,6 @@ package org.signal.cdsi.limits.redis;
 import static org.signal.cdsi.util.MetricsUtil.name;
 
 import com.google.common.annotations.VisibleForTesting;
-import io.github.resilience4j.micronaut.annotation.CircuitBreaker;
-import io.github.resilience4j.micronaut.annotation.Retry;
 import io.lettuce.core.RedisException;
 import io.lettuce.core.RedisNoScriptException;
 import io.lettuce.core.ScriptOutputType;
@@ -18,6 +16,7 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
 import io.micronaut.context.annotation.EachBean;
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.retry.annotation.CircuitBreaker;
 import jakarta.inject.Named;
 import java.io.IOException;
 import java.io.InputStream;
@@ -82,8 +81,9 @@ public class RedisLeakyBucketRateLimiter implements LeakyBucketRateLimiter {
     }
   }
 
-  @Retry(name = "redis")
-  @CircuitBreaker(name = "redis")
+  @CircuitBreaker(attempts = "${redis-leaky-bucket.circuit-breaker.attempts:3}",
+      delay = "${redis-leaky-bucket.circuit-breaker.delay:500ms}",
+      reset = "${redis-leaky-bucket.circuit-breaker.reset:5s}")
   CompletableFuture<Object> executeScript(final List<String> keys, final List<String> args) {
     return redisClusterConnection.async()
         .evalsha(sha, ScriptOutputType.INTEGER, keys.toArray(STRING_ARRAY), args.toArray(STRING_ARRAY))

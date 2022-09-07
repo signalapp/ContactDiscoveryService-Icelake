@@ -26,7 +26,6 @@ import io.lettuce.core.protocol.Command;
 import io.lettuce.core.protocol.CommandType;
 import io.lettuce.core.protocol.RedisCommand;
 import io.micronaut.context.annotation.Property;
-import io.micronaut.context.annotation.Replaces;
 import io.micronaut.test.annotation.MockBean;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
 import jakarta.inject.Inject;
@@ -36,19 +35,19 @@ import java.util.UUID;
 import java.util.concurrent.CompletionException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.signal.cdsi.enclave.Enclave;
 import org.signal.cdsi.limits.RateLimitExceededException;
 
-// This tests the @Retry and @CircuitBreaker, since those are only enabled through Micronaut
+// This tests the @CircuitBreaker, since it is only enabled through Micronaut
 @MicronautTest
-@Property(name = "resilience4j.retry.instances.redis.max-attempts", value = RedisLeakyBucketRateLimiterIntegrationTest.RETRIES)
-// 2ms is the minimum for wait-duration, else retry wait randomization could lead to a 0ms delay, which means “no retry”
-@Property(name = "resilience4j.retry.instances.redis.wait-duration", value = "PT0.002S")
+@Property(name = "redis-leaky-bucket.circuit-breaker.attempts", value = RedisLeakyBucketRateLimiterIntegrationTest.RETRIES)
+@Property(name = "redis-leaky-bucket.circuit-breaker.delay", value = "2ms")
+@Property(name = "redis-leaky-bucket.circuit-breaker.reset", value = "1s")
 public class RedisLeakyBucketRateLimiterIntegrationTest {
   static final String RETRIES = "2";
   private RedisCommand<String, String, Object> noOverflow;
   private RedisCommand<String, String, Object> overflow;
 
+  @SuppressWarnings("unchecked")
   @MockBean
   @Named(LeakyBucketRedisClientFactory.CONNECTION_NAME)
   StatefulRedisClusterConnection<String, String> mockConnection = mock(StatefulRedisClusterConnection.class);
@@ -60,12 +59,15 @@ public class RedisLeakyBucketRateLimiterIntegrationTest {
 
   @SuppressWarnings("unchecked")
   @BeforeEach
-  void setup() {
+  void setup() throws InterruptedException {
     asyncCommands = mock(RedisAdvancedClusterAsyncCommands.class);
     when(mockConnection.async()).thenReturn(asyncCommands);
 
     noOverflow = new Command<>(CommandType.EVALSHA, new CommandOutput<>(StringCodec.UTF8, 0L) {});
     overflow = new Command<>(CommandType.EVALSHA, new CommandOutput<>(StringCodec.UTF8, 1L) {});
+
+    // Terrible hack: wait for the breaker to reset between test runs
+    Thread.sleep(2_000);
   }
 
   @Test
@@ -114,7 +116,8 @@ public class RedisLeakyBucketRateLimiterIntegrationTest {
       limiter.validate(aci, 1).join();
     });
 
-    verify(mockConnection, times(Integer.parseInt(RETRIES))).async();
+    // We expect one "original" call, then RETRIES follow-up calls
+    verify(mockConnection, times(Integer.parseInt(RETRIES) + 1)).async();
   }
 
 }
