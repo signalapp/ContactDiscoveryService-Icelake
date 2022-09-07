@@ -420,4 +420,31 @@ class IntegrationTest {
       assertEquals(1, clientResponse.getDebugPermitsUsed());
     }
   }
+
+  @Test
+  void testInvalidToken() throws Exception {
+    tokenRateLimiter.setRetryAfter(Optional.of(Duration.ofSeconds(13)));
+
+    try (final CdsiWebsocket cdsiWebsocket = Mono.from(webSocketClient.connect(
+        CdsiWebsocket.class,
+        AuthenticationHelper.HTTP_REQUEST)).block()) {
+
+      assertNotNull(cdsiWebsocket);
+
+      final byte[] badToken = new byte[65];
+      badToken[0] = 1;  // version
+      CdsiWebsocket.CloseException e = assertThrows(CdsiWebsocket.CloseException.class,
+          () -> cdsiWebsocket.run(ClientRequest
+          .newBuilder()
+          .setNewE164S(ByteString.copyFrom(ByteBuffer
+              .allocate(8)
+              .putLong(E164)
+              .array()))
+          .setAciUakPairs(
+              ByteString.copyFrom(List.of(UUIDUtil.toByteString(ACI), UUIDUtil.toByteString(UUID.randomUUID()))))
+          .setToken(ByteString.copyFrom(badToken))
+          .build()));
+      assertEquals(4101, e.getCode());
+    }
+  }
 }

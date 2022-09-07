@@ -122,12 +122,13 @@ public class WebSocketHandler {
   }
 
   private static int statusCodeFromCdsiEnclaveException(CdsiEnclaveException e) {
+    // 4000 - 4099: maps to GRPC error codes
+    // 4100 - 4199: CDSI-specific error codes
     return switch (e.getCode()) {
       case 202, // err_ENCLAVE__LOADPB__SECRET_TOO_LARGE,
           203, // err_ENCLAVE__LOADPB__TUPLES_INVALID,
           204, // err_ENCLAVE__LOADPB__REQUEST_PB_DECODE,
           301, // err_ENCLAVE__NEWCLIENT__EREPORT_TOO_LARGE,
-          403, // err_ENCLAVE__RATELIMIT__INVALID_TOKEN,
           404, // err_ENCLAVE__RATELIMIT__INVALID_E164S,
           408, // err_ENCLAVE__RATELIMIT__NO_TOKEN,
           409, // err_ENCLAVE__RATELIMIT__UNSUPPORTED_VERSION,
@@ -136,9 +137,12 @@ public class WebSocketHandler {
           413, // err_ENCLAVE__RATELIMIT__INVALID_TOKEN_FORMAT,
           503, // err_ENCLAVE__RUN__NO_TOKEN_ACK,
           506 // err_ENCLAVE__RUN__REQUEST_PB_DECODE,
-          -> 4003;
+          -> 4003;  // invalid argument
 
-      default -> 4013;
+      case 403 // err_ENCLAVE__RATELIMIT__INVALID_TOKEN,
+          -> 4101;  // invalid rate limit token
+
+      default -> 4013;  // internal error
     };
   }
 
