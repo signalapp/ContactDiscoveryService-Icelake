@@ -173,7 +173,11 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
         "token cannot be the bucket identifier constant");
 
     // read the token bucket
-    return container.readItem(TokenBucket.ID, new PartitionKey(key), new CosmosItemRequestOptions(), TokenBucket.class)
+    return container.readItem(
+            TokenBucket.ID,
+            new PartitionKey(key),
+            new CosmosItemRequestOptions().setConsistencyLevel(ConsistencyLevel.STRONG),
+            TokenBucket.class)
         .onErrorResume(NotFoundException.class, e -> {
           // there wasn't an existing bucket, create a bucket with no rate limit used
           logger.trace("Creating empty token bucket for {} on first use", key);
