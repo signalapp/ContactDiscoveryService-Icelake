@@ -21,6 +21,7 @@
     <micronaut.runtime>netty</micronaut.runtime>
     <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
 
+    <testcontainers.version>1.17.5</testcontainers.version>
     <aws.sdk.version>2.17.228</aws.sdk.version>
     <commons.codec.version>1.15</commons.codec.version>
     <guava.version>31.1-jre</guava.version>
@@ -44,6 +45,13 @@
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>bom</artifactId>
         <version>${aws.sdk.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>testcontainers-bom</artifactId>
+        <version>${testcontainers.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
@@ -222,6 +230,16 @@
       <groupId>org.signal.forks</groupId>
       <artifactId>noise-java</artifactId>
       <version>0.1.0</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>azure</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
       <scope>test</scope>
     </dependency>
   </dependencies>

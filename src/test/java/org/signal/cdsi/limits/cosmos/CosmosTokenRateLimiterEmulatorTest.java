@@ -7,18 +7,29 @@ package org.signal.cdsi.limits.cosmos;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.azure.cosmos.ConsistencyLevel;
+import com.azure.cosmos.CosmosAsyncClient;
 import com.azure.cosmos.CosmosAsyncContainer;
 import com.azure.cosmos.CosmosAsyncDatabase;
 import com.azure.cosmos.CosmosClientBuilder;
 import com.azure.cosmos.implementation.NotFoundException;
+import com.azure.cosmos.models.CosmosContainerProperties;
+import com.azure.cosmos.models.CosmosDatabaseResponse;
 import com.azure.cosmos.models.PartitionKey;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Path;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.CertificateException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -26,82 +37,70 @@ import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.signal.cdsi.limits.TokenRateLimitConfiguration;
+import org.junit.jupiter.api.io.TempDir;
 import org.signal.cdsi.limits.RateLimitExceededException;
+import org.signal.cdsi.limits.TokenRateLimitConfiguration;
+import org.testcontainers.containers.CosmosDBEmulatorContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.utility.DockerImageName;
 
-/**
- * You can run this suite by following <a href="https://docs.microsoft.com/en-us/azure/cosmos-db/local-emulator?tabs=ssl-netstd21">
- * these instructions</a> to set up the cosmosdb emulator. This includes adding the self-signed cert from the emulator
- * to a keystore and providing the path to it below in system properties
- */
-@Disabled("This test requires you to manually set up the cosmosdb emulator")
+@Testcontainers
+@Disabled
 public class CosmosTokenRateLimiterEmulatorTest {
-
-  static {
-    System.setProperty("javax.net.ssl.trustStore", "/home/ravi/cacerts");
-    System.setProperty("javax.net.ssl.trustStorePassword", "password");
-  }
 
   private static final String DB_NAME = "CdsiTest";
   private static final String TABLE_NAME = "CosmosRateLimitTest";
-  // not a secret, publicly known key for the cosmosdb emulator
-  private static final String KEY = "C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==";
-  private static final String ENDPOINT = "https://localhost:8081";
   private static final ByteBuffer EMPTY_TOKEN = ByteBuffer.wrap(new byte[0]);
 
   private int token;
   private CosmosAsyncContainer container;
+  private CosmosContainerProperties properties;
   private Clock clock;
   private CosmosTokenRateLimiter tokenRateLimiter;
 
+  @TempDir
+  private Path tempFolder;
+
+  @Container
+  public CosmosDBEmulatorContainer emulator = new CosmosDBEmulatorContainer(
+      DockerImageName.parse("mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator")
+  );
+
 
   @BeforeEach
-  void setup() {
-    var client = new CosmosClientBuilder()
-        .endpoint(ENDPOINT)
-        .key(KEY)
+  void setup() throws IOException, CertificateException, KeyStoreException, NoSuchAlgorithmException {
+    Path keyStoreFile = tempFolder.resolve("azure-cosmos-emulator.keystore");
+    KeyStore keyStore = emulator.buildNewKeyStore();
+    keyStore.store(new FileOutputStream(keyStoreFile.toFile()), emulator.getEmulatorKey().toCharArray());
+
+    System.setProperty("javax.net.ssl.trustStore", keyStoreFile.toString());
+    System.setProperty("javax.net.ssl.trustStorePassword", emulator.getEmulatorKey());
+    System.setProperty("javax.net.ssl.trustStoreType", "PKCS12");
+
+    final CosmosAsyncClient client = new CosmosClientBuilder()
+        .endpointDiscoveryEnabled(false)
+        .endpoint(emulator.getEmulatorEndpoint())
+        .key(emulator.getEmulatorKey())
         .consistencyLevel(ConsistencyLevel.SESSION)
         .buildAsyncClient();
+    final CosmosDatabaseResponse response = client.createDatabaseIfNotExists(DB_NAME).block();
+    CosmosAsyncDatabase database = client.getDatabase(response.getProperties().getId());
 
-    CosmosAsyncDatabase database = client.getDatabase(
-        client.createDatabaseIfNotExists(DB_NAME).block().getProperties().getId());
+    properties = database
+        .createContainer(new CosmosContainerProperties(TABLE_NAME, CosmosTokenRateLimiter.PARTITION_KEY_PATH))
+        .block()
+        .getProperties();
 
-    database.delete().block();
-    database = client.getDatabase(client.createDatabaseIfNotExists(DB_NAME).block().getProperties().getId());
-    container = database.getContainer(
-        database.createContainer(TABLE_NAME, CosmosTokenRateLimiter.PARTITION_KEY_PATH).block().getProperties()
-            .getId());
+    container = database.getContainer(properties.getId());
     token = 0;
-
     clock = mock(Clock.class);
     when(clock.instant()).thenReturn(Instant.ofEpochSecond(0));
     tokenRateLimiter = new CosmosTokenRateLimiter(container, clock, conf(), new SimpleMeterRegistry(), true);
-
-  }
-
-  private ByteBuffer token() {
-    return ByteBuffer.allocate(4).putInt(token++).flip();
-  }
-
-  private static TokenRateLimitConfiguration conf() {
-    TokenRateLimitConfiguration conf = new TokenRateLimitConfiguration();
-    conf.setBucketSize(10);
-    conf.setLeakRateDuration(Duration.ofSeconds(1));
-    conf.setLeakRateScalar(1);
-    return conf;
-  }
-
-  private void validate(CosmosTokenRateLimiter rateLimiter, String key, ByteBuffer token) throws Throwable {
-    try {
-      rateLimiter.validate(key, token).join();
-    } catch (CompletionException e) {
-      throw e.getCause();
-    }
   }
 
   @Test
@@ -137,7 +136,9 @@ public class CosmosTokenRateLimiterEmulatorTest {
         () -> tokenRateLimiter.prepare("foo", 1, token3, token4).join(),
         "Token 4 should be rejected");
 
-    assertTrue(completionException.getCause() instanceof IOException);
+    // Request can never succeed because it's larger than the bucket limit, maps
+    // to a 4003 response
+    assertTrue(completionException.getCause() instanceof IllegalArgumentException);
 
     // token 3 should use all permits
     tokenRateLimiter.validate("foo", token3).join();
@@ -241,24 +242,56 @@ public class CosmosTokenRateLimiterEmulatorTest {
     assertEquals(1, countTokens("foo"));
   }
 
+  private <T> void waitForDeletion(String id, PartitionKey partitionKey, Class<T> cls) throws InterruptedException {
+    while (true) {
+      Thread.sleep(Duration.ofMillis(100).toMillis());
+      try {
+        container.readItem(id, partitionKey, cls).block();
+      } catch (NotFoundException e) {
+        return;
+      }
+    }
+  }
+
   @Test
-  public void testTtl() throws InterruptedException {
+  public void testTtl() {
+
+    // -1 enables TTL with a default TTL of infinity
+    container.replace(properties.setDefaultTimeToLiveInSeconds(-1)).block();
+
     container.createItem(TokenBucket.create("test", 1.0, Instant.now().toString(), 1)).block();
     container.createItem(TokenCost.create("test", "id", 1, Instant.now().toString(), 1)).block();
     container.readItem(TokenBucket.ID, new PartitionKey("test"), TokenBucket.class).block();
     container.readItem("id", new PartitionKey("test"), TokenCost.class).block();
-    Thread.sleep(1000 * 5);
+
+    assertTimeoutPreemptively(
+        Duration.ofSeconds(30),
+        () -> waitForDeletion(TokenBucket.ID, new PartitionKey("test"), TokenBucket.class),
+        "TokenBucket was not cleaned up via expiration");
+
+    assertTimeoutPreemptively(
+        Duration.ofSeconds(30),
+        () -> waitForDeletion("id", new PartitionKey("test"), TokenCost.class),
+        "TokenCost was not cleaned up via expiration");
+  }
+
+  private ByteBuffer token() {
+    return ByteBuffer.allocate(4).putInt(token++).flip();
+  }
+
+  private static TokenRateLimitConfiguration conf() {
+    TokenRateLimitConfiguration conf = new TokenRateLimitConfiguration();
+    conf.setBucketSize(10);
+    conf.setLeakRateDuration(Duration.ofSeconds(1));
+    conf.setLeakRateScalar(1);
+    return conf;
+  }
+
+  private void validate(CosmosTokenRateLimiter rateLimiter, String key, ByteBuffer token) throws Throwable {
     try {
-      container.readItem(TokenBucket.ID, new PartitionKey("test"), TokenBucket.class).block();
-      Assertions.fail("Item should have expired");
-    } catch (NotFoundException e) {
-      // expected
-    }
-    try {
-      container.readItem("id", new PartitionKey("test"), TokenCost.class).block();
-      Assertions.fail("Item should have expired");
-    } catch (NotFoundException e) {
-      // expected
+      rateLimiter.validate(key, token).join();
+    } catch (CompletionException e) {
+      throw e.getCause();
     }
   }
 
