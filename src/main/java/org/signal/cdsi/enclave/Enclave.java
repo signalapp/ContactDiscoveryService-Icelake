@@ -30,6 +30,7 @@ import java.nio.file.Files;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -73,6 +74,7 @@ public class Enclave implements AutoCloseable {
 
   private final AtomicReference<Instant> lastAttestationTimestamp = new AtomicReference<>();
   private final AtomicInteger openClientCount;
+  private final Map<String, AtomicLong> attestationMetrics = new HashMap<>();
   @VisibleForTesting
   final AtomicLong activeEntries;
   private final long capacity;
@@ -203,7 +205,7 @@ public class Enclave implements AutoCloseable {
 
   private void publishAttestationMetrics(final byte[] ereport) throws AttestationDataException {
 
-    // Lazily instantiate (and replace) this gauge on successful attestation to avoid situations where we report a
+    // Lazily instantiate this gauge on successful attestation to avoid situations where we report a
     // nonsense value while the service is starting up and completing its first attestation.
     Gauge.builder(
             name(Enclave.class, "attestationAge"),
@@ -214,15 +216,25 @@ public class Enclave implements AutoCloseable {
     final Map<String, Long> metrics = Cds2Metrics.extract(ereport);
 
     for (final Entry<String, Long> metric : metrics.entrySet()) {
-      if (metric.getKey().endsWith("_ts")) {
-        // Interpret a metric that ends with "ts" as a timestamp. Currently,
-        // all metrics from libsignal.cds2 are epoch timestamps in seconds.
-        // (only used a hint for base-unit information)
-        TimeGauge
-            .builder(name(Enclave.class, metric.getKey()), metric.getValue()::longValue, TimeUnit.SECONDS)
-            .register(meterRegistry);
+      final String metricKey = name(Enclave.class, metric.getKey());
+
+      if (attestationMetrics.containsKey(metricKey)) {
+        // update the already registered metric
+        attestationMetrics.get(metricKey).set(metric.getValue());
       } else {
-        Gauge.builder(name(Enclave.class, metric.getKey()), metric.getValue()::longValue).register(meterRegistry);
+        // register a metric
+        AtomicLong gauge = new AtomicLong(metric.getValue());
+        attestationMetrics.put(metricKey, gauge);
+        if (metric.getKey().endsWith("_ts")) {
+          // Interpret a metric that ends with "ts" as a timestamp. Currently,
+          // all metrics from libsignal.cds2 are epoch timestamps in seconds.
+          // (only used a hint for base-unit information)
+          TimeGauge
+              .builder(metricKey, gauge::get, TimeUnit.SECONDS)
+              .register(meterRegistry);
+        } else {
+          Gauge.builder(metricKey, gauge::get).register(meterRegistry);
+        }
       }
     }
   }
