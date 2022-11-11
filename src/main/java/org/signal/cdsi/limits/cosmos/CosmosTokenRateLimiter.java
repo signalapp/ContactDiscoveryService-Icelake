@@ -161,6 +161,21 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
         });
   }
 
+  /**
+   * Check if the provided delta exceeds the bucket's current remaining limit
+   *
+   * @param bucket the rate limit bucket
+   * @param delta the amount requested to add
+   * @throws RateLimitExceededException if the bucket cannot currently accept delta
+   */
+  private void checkRateLimit(final TokenBucket bucket, final int delta) throws RateLimitExceededException{
+    Instant now = clock.instant();
+    Instant lastUpdated = Optional.ofNullable(bucket.getTs())
+        .map(Instant::parse)
+        .orElse(Instant.EPOCH);
+    RateLimits.calculateBucketUtilization(configuration, lastUpdated, now, bucket.getAmount(), delta);
+  }
+
   @Override
   public CompletableFuture<Void> prepare(final String key, final int amountDelta, final ByteBuffer oldTokenHash,
       final ByteBuffer newTokenHash) {
@@ -171,6 +186,9 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
     String newTokenId = base64Encode(newTokenHash);
     Preconditions.checkArgument(!Objects.equals(newTokenId, TokenBucket.ID),
         "token cannot be the bucket identifier constant");
+
+    // just need a final reference to the TokenBucket later on in the pipeline
+    final TokenBucket[] bucketRef = new TokenBucket[1];
 
     // read the token bucket
     return container.readItem(
@@ -186,7 +204,11 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
               new CosmosItemRequestOptions().setContentResponseOnWriteEnabled(true));
         })
         // attempt to clean up any old tokens
-        .flatMap(bucketResponse -> tryGarbageCollect(bucketResponse, key, oldTokenId, now))
+        .flatMap(bucketResponse -> {
+          // save off the TokenBucket for later
+          bucketRef[0] = bucketResponse.getItem();
+          return tryGarbageCollect(bucketResponse, key, oldTokenId, now);
+        })
         .then(getNewTokenCost(key, oldTokenId, amountDelta))
         .flatMap(requestSize -> {
           logger.trace("Computed cost for new token {} is {}", KeyToken.of(key, newTokenId), requestSize);
@@ -201,6 +223,12 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
             // this token doesn't cost anything, so we don't need to
             // put anything in token storage
             return Mono.empty();
+          }
+          try {
+            // check if the request would be rate limited without actually using the rate limit
+            checkRateLimit(bucketRef[0], requestSize);
+          } catch (RateLimitExceededException e) {
+            return Mono.error(e);
           }
           final TokenCost cost = TokenCost.create(key, newTokenId, requestSize, now.toString(), getTtl());
 
