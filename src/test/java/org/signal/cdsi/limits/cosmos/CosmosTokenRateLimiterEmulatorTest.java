@@ -112,31 +112,11 @@ public class CosmosTokenRateLimiterEmulatorTest {
     tokenRateLimiter.prepare("foo", 10, token1, token2).join();
     tokenRateLimiter.validate("foo", token2).join();
 
-    // out of permits
-    Assertions.assertThrows(RateLimitExceededException.class, () -> prepare(tokenRateLimiter, "foo", 1, token2, token3));
-
-    when(clock.instant()).thenReturn(Instant.ofEpochSecond(1));
-    // now should have enough
     tokenRateLimiter.prepare("foo", 1, token2, token3).join();
-    tokenRateLimiter.validate("foo", token3).join();
-  }
-
-  @Test
-  public void testExhaustPermitsValidate() {
-    ByteBuffer token1 = token();
-    ByteBuffer token2 = token();
-    ByteBuffer token3 = token();
-
-    // prepare both tokens in parallel before using the rate limit (would typically only happen
-    // if there are multiple clients)
-    tokenRateLimiter.prepare("foo", 10, token1, token2).join();
-    tokenRateLimiter.prepare("foo", 1, token1, token3).join();
-
-    tokenRateLimiter.validate("foo", token2).join();
 
     // out of permits
-    Assertions.assertThrows(RateLimitExceededException.class, () -> validate(tokenRateLimiter, "foo",  token3));
-    // move clock forward
+    Assertions.assertThrows(RateLimitExceededException.class, () -> validate(tokenRateLimiter, "foo", token3));
+
     when(clock.instant()).thenReturn(Instant.ofEpochSecond(1));
     // now should have enough
     tokenRateLimiter.validate("foo", token3).join();
@@ -164,9 +144,10 @@ public class CosmosTokenRateLimiterEmulatorTest {
     tokenRateLimiter.validate("foo", token3).join();
 
     ByteBuffer token5 = token(); // 1
-    Assertions.assertThrows(RateLimitExceededException.class, () -> prepare(tokenRateLimiter, "foo", 1, token1, token5));
+    tokenRateLimiter.prepare("foo", 1, token1, token5).join();
+    Assertions.assertThrows(RateLimitExceededException.class, () -> validate(tokenRateLimiter, "foo", token5));
     when(clock.instant()).thenReturn(Instant.ofEpochSecond(1));
-    tokenRateLimiter.prepare( "foo", 1, token1, token5).join();
+    // now should have enough
     tokenRateLimiter.validate("foo", token5).join();
   }
 
@@ -309,14 +290,6 @@ public class CosmosTokenRateLimiterEmulatorTest {
   private void validate(CosmosTokenRateLimiter rateLimiter, String key, ByteBuffer token) throws Throwable {
     try {
       rateLimiter.validate(key, token).join();
-    } catch (CompletionException e) {
-      throw e.getCause();
-    }
-  }
-
-  private void prepare(CosmosTokenRateLimiter rateLimiter, String key, int amountDelta, ByteBuffer oldTokenHash, ByteBuffer newTokenHash) throws Throwable {
-    try {
-      rateLimiter.prepare(key, amountDelta, oldTokenHash, newTokenHash).join();
     } catch (CompletionException e) {
       throw e.getCause();
     }

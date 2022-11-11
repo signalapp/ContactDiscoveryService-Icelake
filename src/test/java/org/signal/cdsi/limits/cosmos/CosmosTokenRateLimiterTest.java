@@ -5,7 +5,6 @@
 
 package org.signal.cdsi.limits.cosmos;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -178,39 +177,6 @@ public class CosmosTokenRateLimiterTest {
     assertEquals(spent, 0);
 
     verify(container, never()).executeCosmosBatch(any(), any());
-  }
-
-  @Test
-  public void rateLimitExceededPrepare() {
-    final ByteBuffer oldToken = token(); // 2
-    final ByteBuffer newToken = token(); // 2 + 3
-
-    // can only accept 4
-    mockRead(TokenBucket.ID, TokenBucket.class, mockResponse(tokenBucket(6), ETAG));
-    mockRead(base64Encode(oldToken), tokenCost(oldToken, 2));
-
-    try {
-      // prepare should fail, there are only 4/5 permits available
-      cosmosTokenRateLimiter.prepare(KEY, 3, oldToken, newToken).join();
-      Assertions.fail("Rate limit should be exceeded");
-    } catch (CompletionException e) {
-      assertTrue(e.getCause() instanceof RateLimitExceededException);
-      RateLimitExceededException rle = (RateLimitExceededException) e.getCause();
-      // need 1 more permit, should wait 1 + 1 seconds
-      assertEquals(rle.getRetryDuration().toSeconds(), 2);
-    }
-
-    // advance the clock
-    when(clock.instant()).thenReturn(Instant.ofEpochSecond(1));
-
-    // now should work (should write the token)
-    Mono<CosmosItemResponse<TokenCost>> createTokenResponse = mockResponse(null);
-    when(container.createItem(eq(tokenCost(newToken, 5)), any(), any()))
-        .thenReturn(createTokenResponse);
-
-    assertDoesNotThrow(() -> cosmosTokenRateLimiter.prepare(KEY, 3, oldToken, newToken).join());
-    verify(container, times(1))
-        .createItem(eq(tokenCost(newToken, 5)), eq(new PartitionKey(KEY)), any());
   }
 
   @Test
