@@ -9,8 +9,8 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.client.annotation.Client;
@@ -27,17 +27,22 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.signal.cdsi.account.AccountPopulator;
 import org.signal.cdsi.auth.AuthenticationHelper;
 import org.signal.cdsi.auth.ExternalServiceTokenAuthenticationProvider;
 import org.signal.cdsi.client.CdsiWebsocket;
+import org.signal.cdsi.client.CdsiWebsocket.CloseException;
 import org.signal.cdsi.enclave.DirectoryEntry;
 import org.signal.cdsi.enclave.TestEnclave;
 import org.signal.cdsi.limits.LeakyBucketRateLimiter;
 import org.signal.cdsi.limits.ManualTokenRateLimiter;
 import org.signal.cdsi.limits.RateLimitExceededException;
+import org.signal.cdsi.limits.RetryAfterMessage;
 import org.signal.cdsi.proto.ClientRequest;
 import org.signal.cdsi.proto.ClientResponse;
 import org.signal.cdsi.util.UUIDUtil;
@@ -102,19 +107,19 @@ class IntegrationTest {
   @BeforeEach
   void reset() throws InterruptedException {
     connectionLimiter.setAllow(true);
-    tokenRateLimiter.setRetryAfter(Optional.empty());
+    tokenRateLimiter.reset();
     enclave.setOverloaded(false);
     enclave.waitForInitialAttestation();
 
     enclave.loadData(List.of(new DirectoryEntry(E164,
-            UUIDUtil.toByteArray(ACI),
-            UUIDUtil.toByteArray(PNI),
-            UUIDUtil.toByteArray(UAK)),
-        new DirectoryEntry(E164_ADDED_REMOVED,
-            UUIDUtil.toByteArray(UUID.randomUUID()),
-            UUIDUtil.toByteArray(UUID.randomUUID()),
-            UUIDUtil.toByteArray(UUID.randomUUID())),
-        DirectoryEntry.deletionEntry(E164_ADDED_REMOVED)),
+                UUIDUtil.toByteArray(ACI),
+                UUIDUtil.toByteArray(PNI),
+                UUIDUtil.toByteArray(UAK)),
+            new DirectoryEntry(E164_ADDED_REMOVED,
+                UUIDUtil.toByteArray(UUID.randomUUID()),
+                UUIDUtil.toByteArray(UUID.randomUUID()),
+                UUIDUtil.toByteArray(UUID.randomUUID())),
+            DirectoryEntry.deletionEntry(E164_ADDED_REMOVED)),
         true);
   }
 
@@ -370,9 +375,15 @@ class IntegrationTest {
     }
   }
 
-  @Test
-  void testRateLimitExceeded() throws Exception {
-    tokenRateLimiter.setRetryAfter(Optional.of(Duration.ofSeconds(13)));
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void testRateLimitExceeded(boolean limitAtAck) throws Exception {
+    if (limitAtAck) {
+      tokenRateLimiter.setValidateRetryAfter(Optional.of(Duration.ofSeconds(13)));
+    } else {
+      tokenRateLimiter.setPrepareRetryAfter(Optional.of(Duration.ofSeconds(13)));
+    }
 
     try (final CdsiWebsocket cdsiWebsocket = Mono.from(webSocketClient.connect(
         CdsiWebsocket.class,
@@ -390,9 +401,14 @@ class IntegrationTest {
               ByteString.copyFrom(List.of(UUIDUtil.toByteString(ACI), UUIDUtil.toByteString(UUID.randomUUID()))))
           .build());
 
-      assertEquals(clientResponse.getRetryAfterSecs(), 13);
-      assertTrue(clientResponse.getE164PniAciTriples().isEmpty());
-      assertTrue(clientResponse.getToken().isEmpty());
+      Assert.fail("should throw a close exception after rate limit is exceeded");
+    } catch (CloseException e) {
+      assertEquals(4008, e.getReason().getCode());
+      ObjectMapper objectMapper = new ObjectMapper();
+      System.out.println(e.getReason().getReason());
+      final RetryAfterMessage retryAfter = WebSocketHandler.OBJECT_MAPPER.readValue(e.getReason().getReason(),
+          RetryAfterMessage.class);
+      assertEquals(retryAfter.getRetryAfter(), 13);
     }
   }
 
@@ -423,7 +439,7 @@ class IntegrationTest {
 
   @Test
   void testInvalidToken() throws Exception {
-    tokenRateLimiter.setRetryAfter(Optional.of(Duration.ofSeconds(13)));
+    tokenRateLimiter.setValidateRetryAfter(Optional.of(Duration.ofSeconds(13)));
 
     try (final CdsiWebsocket cdsiWebsocket = Mono.from(webSocketClient.connect(
         CdsiWebsocket.class,
@@ -435,16 +451,16 @@ class IntegrationTest {
       badToken[0] = 1;  // version
       CdsiWebsocket.CloseException e = assertThrows(CdsiWebsocket.CloseException.class,
           () -> cdsiWebsocket.run(ClientRequest
-          .newBuilder()
-          .setNewE164S(ByteString.copyFrom(ByteBuffer
-              .allocate(8)
-              .putLong(E164)
-              .array()))
-          .setAciUakPairs(
-              ByteString.copyFrom(List.of(UUIDUtil.toByteString(ACI), UUIDUtil.toByteString(UUID.randomUUID()))))
-          .setToken(ByteString.copyFrom(badToken))
-          .build()));
-      assertEquals(4101, e.getCode());
+              .newBuilder()
+              .setNewE164S(ByteString.copyFrom(ByteBuffer
+                  .allocate(8)
+                  .putLong(E164)
+                  .array()))
+              .setAciUakPairs(
+                  ByteString.copyFrom(List.of(UUIDUtil.toByteString(ACI), UUIDUtil.toByteString(UUID.randomUUID()))))
+              .setToken(ByteString.copyFrom(badToken))
+              .build()));
+      assertEquals(4101, e.getReason().getCode());
     }
   }
 }

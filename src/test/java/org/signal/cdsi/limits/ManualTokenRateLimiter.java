@@ -16,24 +16,30 @@ import java.util.concurrent.CompletableFuture;
 @Singleton
 public class ManualTokenRateLimiter implements TokenRateLimiter {
 
-  private Optional<Duration> retryAfter = Optional.empty();
+  private Optional<Duration> validateRetryAfter = Optional.empty();
+  private Optional<Duration> prepareRetryAfter = Optional.empty();
   private Map<TokenKey, Integer> tokenStorage = new HashMap<>();
 
   private record TokenKey(String key, ByteBuffer tokenHash){}
 
   @Override
-  public CompletableFuture<Void> prepare(final String key, int amount, final ByteBuffer oldTokenHash,
+  public CompletableFuture<Void> prepare(final String key, final int amount, final ByteBuffer oldTokenHash,
       final ByteBuffer newTokenHash) {
-    synchronized (this) {
-      amount += tokenStorage.getOrDefault(new TokenKey(key, oldTokenHash.asReadOnlyBuffer()), 0);
-      tokenStorage.put(new TokenKey(key, newTokenHash), amount);
-    }
-    return CompletableFuture.completedFuture(null);
+    return prepareRetryAfter
+        .map(RateLimitExceededException::new)
+        .map(CompletableFuture::<Void>failedFuture)
+        .orElseGet(() -> {
+          synchronized (this) {
+            int newAmount = amount + tokenStorage.getOrDefault(new TokenKey(key, oldTokenHash.asReadOnlyBuffer()), 0);
+            tokenStorage.put(new TokenKey(key, newTokenHash), newAmount);
+          }
+          return CompletableFuture.completedFuture(null);
+        });
   }
 
   @Override
   public CompletableFuture<Integer> validate(final String key, final ByteBuffer tokenHash) {
-    return retryAfter
+    return validateRetryAfter
         .map(RateLimitExceededException::new)
         .map(CompletableFuture::<Integer>failedFuture)
         .orElseGet(() -> {
@@ -46,7 +52,16 @@ public class ManualTokenRateLimiter implements TokenRateLimiter {
         });
   }
 
-  public void setRetryAfter(Optional<Duration> retryAfter) {
-    this.retryAfter = retryAfter;
+  public void setPrepareRetryAfter(Optional<Duration> retryAfter) {
+    this.prepareRetryAfter = retryAfter;
+  }
+
+  public void setValidateRetryAfter(Optional<Duration> retryAfter) {
+    this.validateRetryAfter = retryAfter;
+  }
+
+  public void reset() {
+    this.prepareRetryAfter = Optional.empty();
+    this.validateRetryAfter = Optional.empty();
   }
 }

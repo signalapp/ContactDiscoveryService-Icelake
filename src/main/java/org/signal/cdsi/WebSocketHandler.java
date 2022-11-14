@@ -7,6 +7,10 @@ package org.signal.cdsi;
 
 import static org.signal.cdsi.util.MetricsUtil.name;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.PropertyNamingStrategies;
 import io.micrometer.core.annotation.Counted;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tag;
@@ -25,9 +29,11 @@ import io.micronaut.websocket.annotation.OnOpen;
 import io.micronaut.websocket.annotation.ServerWebSocket;
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
+import javax.annotation.Nullable;
 import org.signal.cdsi.enclave.CdsiEnclaveException;
 import org.signal.cdsi.enclave.Enclave;
 import org.signal.cdsi.enclave.EnclaveClient;
@@ -35,11 +41,11 @@ import org.signal.cdsi.enclave.EnclaveClient.State;
 import org.signal.cdsi.enclave.EnclaveException;
 import org.signal.cdsi.enclave.OpenEnclaveException;
 import org.signal.cdsi.limits.RateLimitExceededException;
+import org.signal.cdsi.limits.RetryAfterMessage;
 import org.signal.cdsi.util.CompletionExceptions;
 import org.signal.cdsi.util.UserAgentUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import javax.annotation.Nullable;
 
 @Secured(SecurityRule.IS_AUTHENTICATED)
 @ServerWebSocket("/v1/{enclaveId}/discovery")
@@ -47,7 +53,12 @@ import javax.annotation.Nullable;
 public class WebSocketHandler {
 
   private static final Logger logger = LoggerFactory.getLogger(WebSocketHandler.class);
-  private static final CompletableFuture<Void> COMPLETED = CompletableFuture.completedFuture(null);
+
+  static final ObjectMapper OBJECT_MAPPER = new ObjectMapper()
+      .setPropertyNamingStrategy(PropertyNamingStrategies.SNAKE_CASE)
+      .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
+      .configure(DeserializationFeature.FAIL_ON_NULL_CREATOR_PROPERTIES, false)
+      .configure(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES, false);
 
   private static final String CLOSE_COUNTER_NAME = name(WebSocketHandler.class, "close");
   private static final String SESSION_TIMER_NAME = name(WebSocketHandler.class, "session");
@@ -81,15 +92,13 @@ public class WebSocketHandler {
   }
 
   /** If the websocket has not already been closed, close it erroneously. */
-  private CompletableFuture<Void> closeWithError(final WebSocketSession session, Throwable cause) {
-    if (closed || client == null) return COMPLETED;
+  private Void closeWithError(final WebSocketSession session, Throwable cause) {
+    if (closed || client == null) return null;
     closed = true;
     cause = CompletionExceptions.unwrap(cause);
 
-    if (cause instanceof RateLimitExceededException rle) {
-      return client.retryResponse((int) rle.getRetryDuration().toSeconds())
-          .thenCompose(session::sendAsync)
-          .thenAccept(ignore -> this.close(session, new CloseReason(4008, "Rate limit exceeded")));
+    if (cause instanceof RateLimitExceededException) {
+      logger.debug("Websocket for session {} closed due to rate limit exceeded", session.getId());
     } else if (cause instanceof ClosedEarlyException) {
       logger.debug("Websocket for session {} closed early", session.getId());
     } else if (cause instanceof EnclaveException) {
@@ -98,27 +107,38 @@ public class WebSocketHandler {
       logger.warn("Closing websocket session {} erroneously", session.getId(), cause);
     }
 
-    final int statusCode;
+    final CloseReason closeReason;
 
     // See https://grpc.github.io/grpc/core/md_doc_statuscodes.html
-    if (cause instanceof IOException) {
-      statusCode = 4014;
+    if (cause instanceof RateLimitExceededException rle) {
+      closeReason = new CloseReason(4008, retryAfterCloseReason(rle.getRetryDuration()));
+    } else if (cause instanceof IOException) {
+      closeReason = new CloseReason(4014, cause.getMessage());
     } else if (cause instanceof IllegalArgumentException) {
-      statusCode = 4003;
+      closeReason = new CloseReason(4003, cause.getMessage());
     } else if (cause instanceof CdsiEnclaveException enclaveException) {
       meterRegistry.counter(ENCLAVE_ERROR_CODES_COUNTER_NAME, List.of(
           Tag.of(ENCLAVE_ERROR_CODES_TAG_CODE, "cdsi_" + enclaveException.getCode()), platformTag)).increment();
-      statusCode = statusCodeFromCdsiEnclaveException(enclaveException);
+      closeReason = new CloseReason(statusCodeFromCdsiEnclaveException(enclaveException), cause.getMessage());
     } else if (cause instanceof OpenEnclaveException enclaveException) {
       meterRegistry.counter(ENCLAVE_ERROR_CODES_COUNTER_NAME, List.of(
           Tag.of(ENCLAVE_ERROR_CODES_TAG_CODE, "oe_" + enclaveException.getCode()), platformTag)).increment();
-      statusCode = 4013;
+      closeReason = new CloseReason(4013, cause.getMessage());
     } else {
-      statusCode = 4013;
+      closeReason = new CloseReason(4013, cause.getMessage());
     }
+    this.close(session, closeReason);
+    return null;
+  }
 
-    this.close(session, new CloseReason(statusCode, cause.getMessage()));
-    return COMPLETED;
+
+  private String retryAfterCloseReason(Duration retryAfter) {
+      try {
+        return OBJECT_MAPPER.writeValueAsString(new RetryAfterMessage(retryAfter.toSeconds()));
+      } catch (JsonProcessingException e) {
+        logger.error("Failed to serialize retry after", e);
+        return "";
+      }
   }
 
   private static int statusCodeFromCdsiEnclaveException(CdsiEnclaveException e) {
@@ -162,7 +182,7 @@ public class WebSocketHandler {
           return session.sendAsync(client.getEreport());
         })
         .thenAccept(ignore -> {})
-        .exceptionallyCompose(err -> closeWithError(session, err));
+        .exceptionally(err -> closeWithError(session, err));
   }
 
 
@@ -189,7 +209,7 @@ public class WebSocketHandler {
             closed = true;
           }
         })
-        .exceptionallyCompose(err -> closeWithError(session, err));
+        .exceptionally(err -> closeWithError(session, err));
   }
 
   private static class ClosedEarlyException extends Exception {}
@@ -200,7 +220,7 @@ public class WebSocketHandler {
     OPEN_WEBSOCKET_COUNT.decrementAndGet();
 
     chain = chain
-        .thenCompose(v -> closeWithError(session, new ClosedEarlyException()))
+        .thenApply(v -> closeWithError(session, new ClosedEarlyException()))
         .thenAccept(ignored -> sessionSample.stop(meterRegistry.timer(SESSION_TIMER_NAME, Tags.of(platformTag))));
     // We use whenComplete to make sure that even if issues arise with other parts of processing,
     // the closeAsync method will be called.  Note also that we don't check for or wait for it to

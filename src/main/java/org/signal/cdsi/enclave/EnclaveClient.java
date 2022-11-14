@@ -103,12 +103,6 @@ public class EnclaveClient {
         .thenCompose(permitsUsed -> enclave.clientRun(this, permitsUsed, ack, out));
   }
 
-  public CompletableFuture<ByteBuffer> retryResponse(int retryAfterSeconds) {
-    Preconditions.checkState(!closed.get());
-    logger.trace("Generating retry response of {}s with enclave", retryAfterSeconds);
-    return enclave.clientRetry(this, retryAfterSeconds);
-  }
-
   /** Closes (asynchronously) the underlying resources utilized by this client.
    *
    * The closeAsync method _must_ be called by the user of an EnclaveClient, and it must be called

@@ -91,7 +91,6 @@ public class Enclave implements AutoCloseable {
   private static final String HANDSHAKE_TIMER_NAME = name(Enclave.class, "nativeClientHandshake");
   private static final String RATE_LIMIT_TIMER_NAME = name(Enclave.class, "nativeClientRateLimit");
   private static final String RUN_TIMER_NAME = name(Enclave.class, "nativeClientRun");
-  private static final String RETRY_TIMER_NAME = name(Enclave.class, "nativeClientRetry");
   private static final String ATTEST_TIMER_NAME = name(Enclave.class, "nativeAttest");
   private static final String CLOSE_CLIENT_TIMER_NAME = name(Enclave.class, "nativeClientClose");
   private static final String TABLE_STATISTICS_TIMER_NAME = name(Enclave.class, "nativeEnclaveTableStatistics");
@@ -379,20 +378,6 @@ public class Enclave implements AutoCloseable {
           }
           return out;
         });
-  }
-
-  CompletableFuture<ByteBuffer> clientRetry(final EnclaveClient client, final int retryAfterSeconds) {
-    // proto should have a single 4b field, plus extra padding for noise/proto metadata
-    final ByteBuffer out = ByteBuffer.allocateDirect(128);
-
-    return supplyAsync(RETRY_TIMER_NAME, () -> {
-      try {
-        nativeClientRetryResponse(id, client.getId(), retryAfterSeconds, out);
-      } catch (final EnclaveException e) {
-        throw new CompletionException(e);
-      }
-      return out;
-    });
   }
 
   public void close() throws EnclaveException, InterruptedException {

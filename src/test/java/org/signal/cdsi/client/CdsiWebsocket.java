@@ -11,7 +11,6 @@ import com.southernstorm.noise.protocol.HandshakeState;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Consumes;
 import io.micronaut.websocket.CloseReason;
-import io.micronaut.websocket.WebSocketSession;
 import io.micronaut.websocket.annotation.ClientWebSocket;
 import io.micronaut.websocket.annotation.OnClose;
 import io.micronaut.websocket.annotation.OnMessage;
@@ -21,7 +20,7 @@ import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import org.signal.cdsi.proto.ClientHandshakeStart;
 import org.signal.cdsi.proto.ClientRequest;
 import org.signal.cdsi.proto.ClientResponse;
@@ -37,7 +36,7 @@ public abstract class CdsiWebsocket implements AutoCloseable {
   private static final byte[] STREAM_OPENED = new byte[0];
   private static final byte[] STREAM_CLOSED = new byte[0];
   private final BlockingQueue<byte[]> incomingMessages = new LinkedBlockingQueue<>();
-  private AtomicInteger closeCode = new AtomicInteger(0);
+  private final AtomicReference<CloseReason> closeReason = new AtomicReference<>();
 
   @OnOpen
   public void onOpen() throws Exception {
@@ -52,22 +51,21 @@ public abstract class CdsiWebsocket implements AutoCloseable {
 
   @OnClose
   public void onClose(CloseReason reason) throws Exception {
-    closeCode.set(reason.getCode());
+    closeReason.set(reason);
     incomingMessages.put(STREAM_CLOSED);
   }
 
   protected abstract void send(byte[] message);
 
   public static final class CloseException extends Exception {
+    private final CloseReason closeReason;
 
-    private final int code;
-
-    CloseException(int code) {
+    CloseException(final CloseReason closeReason) {
       super("closed");
-      this.code = code;
+      this.closeReason = closeReason;
     }
 
-    public int getCode() { return code; }
+    public CloseReason getReason() { return closeReason; }
   }
 
   private byte[] getNext() throws CloseException {
@@ -80,7 +78,7 @@ public abstract class CdsiWebsocket implements AutoCloseable {
     if (next == null)
       throw new AssertionError("null next (timeout?)");
     if (next == STREAM_CLOSED)
-      throw new CloseException(closeCode.get());
+      throw new CloseException(closeReason.get());
     if (next == STREAM_OPENED)
       throw new AssertionError("opened");
     return next;
