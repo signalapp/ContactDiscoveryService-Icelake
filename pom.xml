@@ -10,7 +10,7 @@
   <parent>
     <groupId>io.micronaut</groupId>
     <artifactId>micronaut-parent</artifactId>
-    <version>3.6.2</version>
+    <version>3.7.4</version>
   </parent>
 
   <properties>
@@ -21,7 +21,7 @@
     <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
 
     <testcontainers.version>1.17.5</testcontainers.version>
-    <aws.sdk.version>2.17.228</aws.sdk.version>
+    <aws.sdk.version>2.18.19</aws.sdk.version>
     <commons.codec.version>1.15</commons.codec.version>
     <guava.version>31.1-jre</guava.version>
   </properties>
@@ -66,7 +66,7 @@
     <dependency>
       <groupId>com.azure</groupId>
       <artifactId>azure-cosmos</artifactId>
-      <version>4.35.1</version>
+      <version>4.39.0</version>
     </dependency>
     <dependency>
       <groupId>com.google.protobuf</groupId>
