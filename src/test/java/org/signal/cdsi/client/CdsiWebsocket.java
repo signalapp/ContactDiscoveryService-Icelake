@@ -131,7 +131,10 @@ public abstract class CdsiWebsocket implements AutoCloseable {
       getNext();
       throw new AssertionError("received message after final response");
     } catch (CloseException e) {
-      return finalResponse;
+      // Set the token in the response we send to the caller, so they can make subsequent requests.
+      return finalResponse.toBuilder()
+          .setToken(tokenResponse.getToken())
+          .build();
     }
   }
 

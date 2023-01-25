@@ -225,7 +225,7 @@ int teardown_enclave(oe_enclave_t *enclave, size_t num_shards, pthread_t tids[nu
 int setup_enclave(const char *enclave_filename, oe_enclave_t **enclave, size_t available_bytes, size_t num_shards, pthread_t tids[num_shards])
 {
     int retval = err_SUCCESS;
-    uint32_t flags = OE_ENCLAVE_FLAG_SIMULATE;
+    uint32_t flags = OE_ENCLAVE_FLAG_SIMULATE|OE_ENCLAVE_FLAG_DEBUG_AUTO;
     size_t stash_overflow_size = TEST_STASH_SIZE;
 
     // Create the enclave

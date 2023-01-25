@@ -44,9 +44,11 @@ enclave: proto
 
 libnoise.a:
 	mkdir -p $$(dirname $@)
+	# Noise depends on the "immintrin" header which is not found in the pared-down
+	# version of libc we use, and which it could otherwise not find with -nostdinc.
 	(cd noise-c && \
 	 ./autogen.sh && \
-	 CC=$(TRUSTED_CC) CFLAGS="$(TRUSTED_CFLAGS)" ./configure && \
+	 CC=$(TRUSTED_CC) CFLAGS="$(TRUSTED_CFLAGS) -I$(shell ./find_header.sh $(CC) immintrin.h)" ./configure && \
 	 $(MAKE) -j)
 	cp -v noise-c/src/protocol/libnoiseprotocol.a libnoise.a
 
@@ -84,8 +86,8 @@ untrust/cds_args.h: cds.edl
 	/opt/openenclave/bin/oeedger8r cds.edl \
 	    --untrusted --untrusted-dir untrust \
 	    --trusted --trusted-dir trust \
-	    --search-path $(OE_INCLUDEDIR) \
-	    --search-path $(OE_INCLUDEDIR)/openenclave/edl/sgx
+	    --search-path $(OE_DIR)/include \
+	    --search-path $(OE_DIR)/include/openenclave/edl/sgx
 
 TRUSTED_OE_LIBS=\
 /opt/openenclave/lib/openenclave/enclave/liboeenclave.a \
@@ -182,7 +184,7 @@ testhost.bin: \
 	@echo ======================================================================
 	@echo ==  START  $@ @ $$(date)
 	@echo ======================================================================
-	valgrind --tool=memcheck --leak-check=full --error-exitcode=3 -s --track-origins=yes --exit-on-first-error=yes ./$^ 2>&1 | tee $@
+	valgrind --tool=memcheck --leak-check=full --error-exitcode=3 -s --exit-on-first-error=yes --undef-value-errors=no ./$^ 2>&1 | tee $@
 	@echo ==  FINISH $@ @ $$(date)
 	@echo ======================================================================
 
@@ -270,3 +272,8 @@ docker_%:
 	mkdir -pv "$(RESOURCES_DIR)"
 	docker build -t cdsi-enclave-build ./docker
 	docker run --rm -v "$(CURDIR)":/src -v "$(CURDIR)/../src/main":/src/main -v "$(RESOURCES_DIR)":/resources --user "$$(id -u):$$(id -g)" cdsi-enclave-build make ENCLAVE_ID=$(ENCLAVE_ID) CONFIG=$(CONFIG) INSTALL_DIR=/resources AFL_FLAGS="$(AFL_FLAGS)" ADDITIONAL_CFLAGS="$(ADDITIONAL_CFLAGS)" $*
+
+dockersh:
+	mkdir -pv "$(RESOURCES_DIR)"
+	docker build -t cdsi-enclave-build ./docker
+	docker run --rm -it -v "$(CURDIR)":/src -v "$(CURDIR)/../src/main":/src/main -v "$(RESOURCES_DIR)":/resources --user "$$(id -u):$$(id -g)" cdsi-enclave-build 

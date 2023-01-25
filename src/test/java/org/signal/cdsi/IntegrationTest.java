@@ -9,9 +9,11 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
+import io.lettuce.core.StrAlgoArgs.By;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
@@ -23,8 +25,10 @@ import jakarta.inject.Named;
 import jakarta.inject.Singleton;
 import java.nio.ByteBuffer;
 import java.time.Duration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import org.junit.Assert;
@@ -103,6 +107,7 @@ class IntegrationTest {
   private static final long E164_ADDED_REMOVED = 0x01020305;
 
   private static final UUID UUID_ZERO = new UUID(0, 0);
+  private static final int RECORD_SIZE = 8+16+16;
 
   @BeforeEach
   void reset() throws InterruptedException {
@@ -241,6 +246,76 @@ class IntegrationTest {
               e164PniAciTriple(E164, PNI, UUID_ZERO)),
           clientResponse.getE164PniAciTriples().toByteArray());
       assertEquals(1, clientResponse.getDebugPermitsUsed());
+    }
+  }
+
+  @Test
+  void testResendMultipleE164s() throws Exception {
+    ByteString token = ByteString.EMPTY;
+    try (final CdsiWebsocket cdsiWebsocket = Mono.from(webSocketClient.connect(
+        CdsiWebsocket.class,
+        AuthenticationHelper.HTTP_REQUEST)).block()) {
+
+      assertNotNull(cdsiWebsocket);
+
+      final ClientRequest request =ClientRequest
+          .newBuilder()
+          .setNewE164S(ByteString.copyFrom(ByteBuffer
+              .allocate(8)
+              .putLong(1)
+              .array()))
+          .build();
+      final ClientResponse clientResponse = cdsiWebsocket.run(request);
+
+      Set<ByteString> expected = new HashSet<>();
+      expected.add(ByteString.copyFrom(e164PniAciTriple(0, UUID_ZERO, UUID_ZERO)));
+      Set<ByteString> got = new HashSet<>();
+      for (int i = 0; i < clientResponse.getE164PniAciTriples().size(); i += RECORD_SIZE) {
+        ByteString next = clientResponse.getE164PniAciTriples().substring(i, i+RECORD_SIZE);
+        got.add(next);
+      }
+      assertEquals(expected, got);
+      assertEquals(1, clientResponse.getDebugPermitsUsed());
+      token = clientResponse.getToken();
+    }
+    // Send the same request again, but this time with the token we got and with the value in prev_e164s.
+    try (final CdsiWebsocket cdsiWebsocket = Mono.from(webSocketClient.connect(
+        CdsiWebsocket.class,
+        AuthenticationHelper.HTTP_REQUEST)).block()) {
+
+      assertNotNull(cdsiWebsocket);
+
+      final ClientRequest request = ClientRequest
+          .newBuilder()
+          .setPrevE164S(ByteString.copyFrom(ByteBuffer
+              .allocate(8)
+              .putLong(1)
+              .array()))
+          .setNewE164S(ByteString.copyFrom(ByteBuffer
+              .allocate(64)
+              .putLong(2)
+              .putLong(3)
+              .putLong(4)
+              .putLong(5)
+              .putLong(6)
+              .putLong(7)
+              .putLong(8)
+              .putLong(E164)  // should be found
+              .array()))
+          .setToken(token)
+          .build();
+      final ClientResponse clientResponse = cdsiWebsocket.run(request);
+
+      Set<ByteString> expected = new HashSet<>();
+      expected.add(ByteString.copyFrom(e164PniAciTriple(E164, PNI, UUID_ZERO)));
+      expected.add(ByteString.copyFrom(e164PniAciTriple(0, UUID_ZERO, UUID_ZERO)));
+      Set<ByteString> got = new HashSet<>();
+      for (int i = 0; i < clientResponse.getE164PniAciTriples().size(); i += RECORD_SIZE) {
+        ByteString next = clientResponse.getE164PniAciTriples().substring(i, i+RECORD_SIZE);
+        got.add(next);
+      }
+      assertEquals(expected, got);
+      assertEquals(8, clientResponse.getDebugPermitsUsed());
     }
   }
 

@@ -26,6 +26,7 @@ RUN mkdir /src && \
     afl++ \
     afl++-clang \
     valgrind \
+    pkg-config \
     pip && \
     pip install pbtools==0.45.2
 
@@ -52,6 +53,7 @@ RUN wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.k
 
 ENV PATH="/opt/openenclave/bin:${PATH}"
 ENV JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+ENV PKG_CONFIG_PATH="$PKG_CONFIG_PATH:/opt/openenclave/share/pkgconfig"
 
 WORKDIR /src
 
