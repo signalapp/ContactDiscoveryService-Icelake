@@ -498,7 +498,13 @@ int enclave_rate_limit(
   if (size < 0)
     return err_ENCLAVE__RATELIMIT__REQUEST_PB_DECODE;
 
-  // Check input preconditions
+  // Check input preconditions using constant-time operations. We require that:
+  //
+  // - aci_uak_pairs has a length that's a multiple of 32 bytes (the ACI is a UUID, which is 16 bytes; UAKs are, by
+  //   definition, 16 bytes)
+  // - prev_e164s has a length that's a multiple of 8 bytes (each e164 is 8 bytes)
+  // - new_e164s has a length that's a multiple of 8 bytes
+  // - At least one of new_e164s or prev_e164s has a non-zero length
   if (((req->aci_uak_pairs.size & (4 * sizeof(uint64_t) - 1)) != 0) |
       ((req->prev_e164s.size & (sizeof(uint64_t) - 1)) != 0) |
       ((req->new_e164s.size & (sizeof(uint64_t) - 1)) != 0) |
