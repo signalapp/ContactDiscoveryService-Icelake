@@ -12,11 +12,9 @@ import io.lettuce.core.cluster.ClusterClientOptions;
 import io.lettuce.core.cluster.ClusterTopologyRefreshOptions;
 import io.lettuce.core.cluster.RedisClusterClient;
 import io.lettuce.core.cluster.api.StatefulRedisClusterConnection;
-import io.lettuce.core.metrics.MicrometerCommandLatencyRecorder;
 import io.lettuce.core.metrics.MicrometerOptions;
 import io.lettuce.core.resource.ClientResources;
 import io.lettuce.core.resource.DefaultClientResources;
-import io.micrometer.core.instrument.Metrics;
 import io.micronaut.context.annotation.Bean;
 import io.micronaut.context.annotation.Factory;
 import io.micronaut.context.annotation.Property;
@@ -53,9 +51,7 @@ class LeakyBucketRedisClientFactory {
 
     final MicrometerOptions options = MicrometerOptions.builder()
         .histogram(true).build();
-    final ClientResources clientResources = DefaultClientResources.builder()
-        .commandLatencyRecorder(new MicrometerCommandLatencyRecorder(Metrics.globalRegistry, options))
-        .build();
+    final ClientResources clientResources = DefaultClientResources.builder().build();
 
     final RedisClusterClient redisClusterClient = RedisClusterClient.create(clientResources, redisURIs);
 
