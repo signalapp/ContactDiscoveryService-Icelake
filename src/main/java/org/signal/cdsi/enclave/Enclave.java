@@ -154,7 +154,9 @@ public class Enclave implements AutoCloseable {
         enclaveConfiguration.isSimulated(),
         enclaveConfiguration.isReturnAcisWithoutUaks());
 
-    this.requestSizeDistributionSummary = meterRegistry.summary(name(getClass(), "requestSize"));
+    this.requestSizeDistributionSummary = DistributionSummary.builder(name(getClass(), "requestSize"))
+        .distributionStatisticExpiry(Duration.ofHours(2))
+        .register(meterRegistry);
     this.openClientCount = meterRegistry.gauge(name(getClass(), "openClients"), new AtomicInteger(0));
     this.activeEntries = meterRegistry.gauge(name(getClass(), "activeEntries"), new AtomicLong(0));
 

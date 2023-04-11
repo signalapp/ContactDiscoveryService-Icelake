@@ -112,7 +112,9 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
     this.meterRegistry = meterRegistry;
     this.gcOldTokens = gcOldTokens;
 
-    userTokenCountDist = meterRegistry.summary(name(getClass(), "userTokenCount"));
+    userTokenCountDist = DistributionSummary.builder(name(getClass(), "userTokenCount"))
+        .distributionStatisticExpiry(Duration.ofHours(2))
+        .register(meterRegistry);
     tokenGcTimer = meterRegistry.timer(name(getClass(), "tokenGcTimer"));
     prepareTimer = meterRegistry.timer(name(getClass(), "prepare"));
     validateTimer = meterRegistry.timer(name(getClass(), "validate"));
