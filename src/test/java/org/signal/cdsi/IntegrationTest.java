@@ -212,7 +212,7 @@ class IntegrationTest {
               CdsiWebsocket.class,
               AuthenticationHelper.HTTP_REQUEST)).block());
 
-      assertEquals(503, ((WebSocketClientHandshakeException) e.getCause()).response().status().code());
+      assertEquals(508, ((WebSocketClientHandshakeException) e.getCause()).response().status().code());
     }
 
     {
@@ -221,7 +221,7 @@ class IntegrationTest {
 
       // Normally, trying to connect without credentials would result in a 401. Here, we want to make sure we don't even
       // bother with authentication (and, importantly, with rate-limiting) if we know the enclave is already overloaded.
-      assertEquals(503, ((WebSocketClientHandshakeException) e.getCause()).response().status().code());
+      assertEquals(508, ((WebSocketClientHandshakeException) e.getCause()).response().status().code());
     }
   }
 

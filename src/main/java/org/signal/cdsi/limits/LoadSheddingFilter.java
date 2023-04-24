@@ -31,7 +31,7 @@ public class LoadSheddingFilter implements HttpServerFilter {
   @Override
   public Publisher<MutableHttpResponse<?>> doFilter(final HttpRequest<?> request, final ServerFilterChain chain) {
     return enclave.isOverloaded() ?
-        Publishers.just(HttpResponse.status(HttpStatus.SERVICE_UNAVAILABLE)) :
+        Publishers.just(HttpResponse.status(HttpStatus.valueOf(508))) :
         chain.proceed(request);
   }
 }
