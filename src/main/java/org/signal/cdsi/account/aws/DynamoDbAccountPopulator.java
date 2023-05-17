@@ -5,7 +5,7 @@
 
 package org.signal.cdsi.account.aws;
 
-import static org.signal.cdsi.util.MetricsUtil.name;
+import static org.signal.cdsi.metrics.MetricsUtil.name;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;

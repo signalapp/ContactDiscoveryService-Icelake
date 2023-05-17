@@ -1,6 +1,6 @@
 package org.signal.cdsi.metrics;
 
-import static org.signal.cdsi.util.MetricsUtil.name;
+import static org.signal.cdsi.metrics.MetricsUtil.name;
 
 import io.micrometer.core.instrument.Metrics;
 import io.micrometer.core.instrument.Tags;

@@ -3,11 +3,11 @@
  * SPDX-License-Identifier: AGPL-3.0-only
  */
 
-package org.signal.cdsi.util;
+package org.signal.cdsi.metrics;
 
 public class MetricsUtil {
 
-  private static final String METRIC_NAME_PREFIX = "cdsi.";
+  static final String METRIC_NAME_PREFIX = "cdsi.";
 
   /**
    * Returns a dot-separated ('.') name for the given class and name parts

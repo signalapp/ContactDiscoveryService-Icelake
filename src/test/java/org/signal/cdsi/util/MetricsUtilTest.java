@@ -6,6 +6,7 @@
 package org.signal.cdsi.util;
 
 import org.junit.jupiter.api.Test;
+import org.signal.cdsi.metrics.MetricsUtil;
 
 import static org.junit.jupiter.api.Assertions.*;
 

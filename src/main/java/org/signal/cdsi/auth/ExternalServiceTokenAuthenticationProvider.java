@@ -5,7 +5,7 @@
 
 package org.signal.cdsi.auth;
 
-import static org.signal.cdsi.util.MetricsUtil.name;
+import static org.signal.cdsi.metrics.MetricsUtil.name;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.micrometer.core.instrument.MeterRegistry;

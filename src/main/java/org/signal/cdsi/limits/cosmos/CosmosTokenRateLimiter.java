@@ -5,7 +5,7 @@
 
 package org.signal.cdsi.limits.cosmos;
 
-import static org.signal.cdsi.util.MetricsUtil.name;
+import static org.signal.cdsi.metrics.MetricsUtil.name;
 
 import com.azure.cosmos.ConsistencyLevel;
 import com.azure.cosmos.CosmosAsyncContainer;

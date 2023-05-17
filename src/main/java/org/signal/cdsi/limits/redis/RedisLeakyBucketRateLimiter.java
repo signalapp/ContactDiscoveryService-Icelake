@@ -5,7 +5,7 @@
 
 package org.signal.cdsi.limits.redis;
 
-import static org.signal.cdsi.util.MetricsUtil.name;
+import static org.signal.cdsi.metrics.MetricsUtil.name;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.lettuce.core.RedisException;
