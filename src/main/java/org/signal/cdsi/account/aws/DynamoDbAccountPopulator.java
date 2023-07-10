@@ -242,7 +242,7 @@ class DynamoDbAccountPopulator implements AccountPopulator, SubscribeToShardResp
           .mapNotNull(DynamoDbAccountPopulator::directoryInsertEntryFromItem));
     }
 
-    // Shuffle the list to make it less likely that we'll have two consumers trying ot read the same segments at the
+    // Shuffle the list to make it less likely that we'll have two consumers trying to read the same segments at the
     // same time
     Collections.shuffle(segmentPublishers);
 
