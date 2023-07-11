@@ -46,6 +46,7 @@ TRUSTED_CFLAGS= \
   -DOE_API_VERSION=2 \
   -DOE_BUILD_ENCLAVE \
   -pthread \
+  -mllvm -x86-cmov-converter=false \
 ##TRUSTED_CFLAGS
 TRUSTED_LDFLAGS=\
   $(shell pkg-config oeenclave-clang --libs) \
