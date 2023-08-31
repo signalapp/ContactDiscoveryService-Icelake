@@ -23,7 +23,7 @@
     <testcontainers.version>1.17.5</testcontainers.version>
     <aws.sdk.version>2.18.19</aws.sdk.version>
     <commons.codec.version>1.15</commons.codec.version>
-    <guava.version>31.1-jre</guava.version>
+    <guava.version>32.1.2-jre</guava.version>
   </properties>
 
   <repositories>
