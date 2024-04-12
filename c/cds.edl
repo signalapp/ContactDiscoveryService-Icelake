@@ -9,38 +9,37 @@ enclave {
                         size_t available_memory,
                         double load_factor,
                         size_t num_shards,
-                        size_t stash_overflow_size,
-                        bool return_acis_without_uaks);
-        
+                        size_t stash_overflow_size);
+
         public int enclave_stop_shards();
-        
+
         public int enclave_new_client(
                         [out, size=8] uint64_t *client_id,
-                        size_t ereport_size, 
+                        size_t ereport_size,
                         [out, size=ereport_size] unsigned char* ereport,
                         [out, size=8] size_t* actual_ereport_size);
         public int enclave_close_client(uint64_t client_id);
 
         public int enclave_rate_limit(
                         uint64_t cli,
-                        size_t in_size, 
+                        size_t in_size,
                         [in, size=in_size] unsigned char* in,
-                        size_t out_size, 
+                        size_t out_size,
                         [out, size=out_size] unsigned char* out,
                         [out, size=8] size_t* actual_out_size,
-                        size_t old_token_hash_size, 
+                        size_t old_token_hash_size,
                         [out, size=old_token_hash_size] unsigned char* old_token_hash,
                         [out, size=8] size_t* actual_old_token_hash_size,
-                        size_t new_token_hash_size, 
+                        size_t new_token_hash_size,
                         [out, size=new_token_hash_size] unsigned char* new_token_hash,
                         [out, size=8] size_t* actual_new_token_hash_size,
                         [out, size=8] size_t* computed_request_size);
 
         public int enclave_handshake(
                         uint64_t cli,
-                        size_t in_size, 
+                        size_t in_size,
                         [in, size=in_size] unsigned char* in,
-                        size_t out_size, 
+                        size_t out_size,
                         [out, size=out_size] unsigned char* out,
                         [out, size=8] size_t* actual_out_size);
 
@@ -64,9 +63,9 @@ enclave {
 
 
         public int enclave_load_pb(
-                        size_t len, 
+                        size_t len,
                         [in, count=len] unsigned char *load_request_pb);
-        
+
         public int enclave_attest();
 
         public int enclave_table_statistics(

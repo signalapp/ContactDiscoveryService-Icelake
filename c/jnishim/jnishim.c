@@ -151,7 +151,7 @@ void JNI_OnUnload(JavaVM *vm, void *reserved) {
 }
 
 JNIEXPORT jlong JNICALL Java_org_signal_cdsi_enclave_Enclave_nativeEnclaveInit
-  (JNIEnv *env, jclass c, jlong available_bytes, jdouble load_factor, jint num_shards, jstring path, jboolean simulate, jboolean return_acis_without_uaks) {
+  (JNIEnv *env, jclass c, jlong available_bytes, jdouble load_factor, jint num_shards, jstring path, jboolean simulate) {
   size_t stash_overflow_size = 100;
   uint32_t flags = 0;
   if (simulate) {
@@ -181,7 +181,7 @@ JNIEXPORT jlong JNICALL Java_org_signal_cdsi_enclave_Enclave_nativeEnclaveInit
   (*env)->ReleaseStringUTFChars(env, path, enclave_path);
   int retval = 0;
   TEST_LOG("Initializing enclave...");
-  if (OE_OK != (result = enclave_init(cdsi_enclave->enc, &retval, available_bytes, load_factor, num_shards, stash_overflow_size, return_acis_without_uaks))) {
+  if (OE_OK != (result = enclave_init(cdsi_enclave->enc, &retval, available_bytes, load_factor, num_shards, stash_overflow_size))) {
     enclave_function_name = "enclave_init";
     goto error;
   } else if (retval != 0) {
@@ -194,7 +194,7 @@ JNIEXPORT jlong JNICALL Java_org_signal_cdsi_enclave_Enclave_nativeEnclaveInit
     cdsi_enclave->tids[i] = run_shard(env, cdsi_enclave, i);
   }
   TEST_LOG("%p: EnclaveInit success", cdsi_enclave->enc);
-  LOG_INFO("Initialized enclave with %d shards and %zu bytes of EPC memory, return_acis_without_uaks=%d", num_shards, available_bytes, return_acis_without_uaks);
+  LOG_INFO("Initialized enclave with %d shards and %zu bytes of EPC memory", num_shards, available_bytes);
   return (uint64_t) cdsi_enclave;
 
 error:

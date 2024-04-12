@@ -5,17 +5,17 @@
 
 package org.signal.cdsi.enclave;
 
-import org.junit.jupiter.api.Test;
-
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+
+import org.junit.jupiter.api.Test;
 
 public class OpenEnclaveCodeExceptionTest {
   @Test
   void enclaveError() throws Exception {
     Enclave.loadSharedLibrary("test");
     OpenEnclaveException err = assertThrows(OpenEnclaveException.class,
-        () -> Enclave.nativeEnclaveInit(1, 2.0, 1, "/path/does/not/exist", true, false));
+        () -> Enclave.nativeEnclaveInit(1, 2.0, 1, "/path/does/not/exist", true));
     assertEquals(err.getCodeName(), "OE_FAILURE");
     assertEquals(err.getFunction(), "oe_create_cds_enclave");
   }

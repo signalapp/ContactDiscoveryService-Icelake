@@ -84,12 +84,12 @@ pthread_t run_shard(oe_enclave_t *enclave, size_t shard_id)
 }
 
 static void print_table_stats(const ohtable_statistics* stats) {
-    fprintf(stderr, "TABLE num_items: %zu capacity: %zu mean_displacement: %lf max_trace: %zu\n", 
+    fprintf(stderr, "TABLE num_items: %zu capacity: %zu mean_displacement: %lf max_trace: %zu\n",
             stats->num_items, stats->capacity, ((double)stats->total_displacement)/stats->num_items, stats->max_trace_length);
     fprintf(stderr, "ORAM overview\n access_count: %zu  num_levels: %zu\n", stats->oram_access_count, stats->oram_recursion_depth);
-    fprintf(stderr, "ORAM health\n stash size (EMA10K): %lf  stash max: %zu stash size: %zu mean stash size: %lf\n", 
+    fprintf(stderr, "ORAM health\n stash size (EMA10K): %lf  stash max: %zu stash size: %zu mean stash size: %lf\n",
             stats->stash_overflow_ema10k, stats->max_stash_overflow_count, stats->stash_overflow_count, ((double)stats->sum_stash_overflow_count)/stats->oram_access_count);
-    fprintf(stderr, "Position map ORAM health\n stash size (EMA10K): %lf  stash max: %zu stash size: %zu\n", 
+    fprintf(stderr, "Position map ORAM health\n stash size (EMA10K): %lf  stash max: %zu stash size: %zu\n",
             stats->posmap_stash_overflow_ema10k, stats->posmap_max_stash_overflow_count, stats->posmap_stash_overflow_count);
 }
 
@@ -127,7 +127,7 @@ int main(int argc, const char *argv[])
     int retval = 0;
     pthread_t tids[NUM_SHARDS];
     printf("initializing enclave\n");
-    OPEN_ENCLAVE_CALL_TEST_ERR(enclave_init(enclave, &retval, AVAILABLE_BYTES, 1.6, NUM_SHARDS, STASH_OVERFLOW_SIZE, false));
+    OPEN_ENCLAVE_CALL_TEST_ERR(enclave_init(enclave, &retval, AVAILABLE_BYTES, 1.6, NUM_SHARDS, STASH_OVERFLOW_SIZE));
     ENCLAVE_TEST_ERR(retval);
 
     for (size_t i = 0; i < NUM_SHARDS; ++i)
@@ -174,7 +174,7 @@ int main(int argc, const char *argv[])
         e164s[i] = samples[i].e164;
     }
 
-    
+
 
     // Performance analysis on queries
     for (size_t i = 0; i < num_sample_batches; ++i)

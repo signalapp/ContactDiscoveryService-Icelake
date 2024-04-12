@@ -162,7 +162,7 @@ int main(int argc, char** argv) {
     }
   }
   ASSERT(in_size > 0);
-  ASSERT(0 == enclave_init((1 << 20), 1.6, 1, 30, false));
+  ASSERT(0 == enclave_init((1 << 20), 1.6, 1, 30));
   pthread_t tid;
   ASSERT(0 == pthread_create(&tid, NULL, run_shard, NULL));
   switch (in[0]) {

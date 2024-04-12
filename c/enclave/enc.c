@@ -51,7 +51,6 @@ static uint8_t g_handshakestart[32 << 10] = {0};
 static uint8_t g_privkey[NOISE_KEY_SIZE] = {0};
 static pthread_rwlock_t g_handshakestart_mu = PTHREAD_RWLOCK_INITIALIZER;
 static oe_uuid_t sgx_remote_uuid = {OE_FORMAT_UUID_SGX_ECDSA};
-static bool g_return_acis_without_uaks = false;
 static uint64_t g_client_secret = 0;
 static uint8_t g_init_done = 0;
 
@@ -95,7 +94,6 @@ typedef struct
   NoiseHandshakeState *handshake;
   NoiseCipherState *send;
   NoiseCipherState *recv;
-  bool return_acis_without_uaks;  // client->req is munged by the _ratelimit call, copy this bool out.
 } client_t;
 
 static error_t validate_privkey(size_t key_size, uint8_t key[])
@@ -161,7 +159,7 @@ static error_t client_remove(uint64_t id, client_t** c) {
   return err_SUCCESS;
 }
 
-int enclave_init(size_t available_memory, double load_factor, size_t num_shards, size_t stash_overflow_size, bool return_acis_without_uaks)
+int enclave_init(size_t available_memory, double load_factor, size_t num_shards, size_t stash_overflow_size)
 {
 #ifdef INSECURE
   ENC_LOG_ERROR("!!! WARNING: this enclave is insecure and is intended only for testing purposes");
@@ -176,7 +174,6 @@ int enclave_init(size_t available_memory, double load_factor, size_t num_shards,
   ENC_LOG_DEBUG("enclave_init(available_memory=%zu, load_factor=%lf, num_shards=%zu)", available_memory, load_factor, num_shards);
 
   g_num_shards = num_shards;
-  g_return_acis_without_uaks = return_acis_without_uaks;
 
   uint8_t client_map_key[FIXEDMAP_HALFSIPHASH_KEYSIZE];
   CHECK(OE_OK == oe_random(client_map_key, FIXEDMAP_HALFSIPHASH_KEYSIZE));
@@ -226,8 +223,8 @@ int enclave_table_statistics(
 
   const size_t num_fields = 14;
   const size_t max_field_name_len = 32;
-  size_t workspace_size = PBUTIL_WORKSPACE_BASE(struct org_signal_cdsi_table_statistics_t) 
-    + g_num_shards * (sizeof(struct org_signal_cdsi_shard_statistics_t) 
+  size_t workspace_size = PBUTIL_WORKSPACE_BASE(struct org_signal_cdsi_table_statistics_t)
+    + g_num_shards * (sizeof(struct org_signal_cdsi_shard_statistics_t)
            + num_fields*( sizeof(struct org_signal_cdsi_value_t) + max_field_name_len));
   uint8_t *workspace;
   RETURN_IF_ERROR(MALLOCZ_SIZE(workspace, workspace_size));
@@ -239,20 +236,20 @@ int enclave_table_statistics(
   if (rsp == NULL) {
     err = err_ENCLAVE__TABLE_STATISTICS__RESPONSE_PB_NEW;
     goto finish;
-  } 
+  }
   int allocated = org_signal_cdsi_table_statistics_shard_statistics_alloc(rsp, g_num_shards);
   if (allocated < 0) {
     err = err_ENCLAVE__TABLE_STATISTICS__RESPONSE_PB_ALLOC_SHARDS;
     goto finish;
-  } 
-  
+  }
+
   for(size_t i = 0; i < g_num_shards; ++i) {
     int alloc_vals = org_signal_cdsi_shard_statistics_values_alloc(rsp->shard_statistics.items_p + i, num_fields);
 
     if (alloc_vals < 0) {
       err = err_ENCLAVE__TABLE_STATISTICS__RESPONSE_PB_ALLOC_SHARDS;
       goto finish;
-    } 
+    }
     TEST_LOG("num_items: %zu max_overflow: %zu max_trace: %zu mean_overflow: %lf",
             stats[i]->num_items, stats[i]->max_stash_overflow_count, stats[i]->max_trace_length, ((double)stats[i]->sum_stash_overflow_count)/stats[i]->oram_access_count);
 
@@ -271,7 +268,7 @@ int enclave_table_statistics(
       { .name = "posmap_stash_overflow_count", .val = stats[i]->posmap_stash_overflow_count},
       // The next two fields are doubles - exponential moving averages of stash overflow size with a half-life of 10,000.
       // We want the double precision for computation, but really only care about the first few digits for reporting.
-      // Instead of creating floating point values for the protobuf, multiply by 10K and store as an integer. 
+      // Instead of creating floating point values for the protobuf, multiply by 10K and store as an integer.
       { .name = "stash_overflow_ema10k", .val = stats[i]->stash_overflow_ema10k * 10000},
       { .name = "posmap_stash_overflow_ema10k", .val = stats[i]->posmap_stash_overflow_ema10k * 10000},
       { .name = NULL }
@@ -279,7 +276,7 @@ int enclave_table_statistics(
 
     for(size_t j = 0; counters[j].name != NULL; ++j) {
       write_stat_value(rsp->shard_statistics.items_p[i].values.items_p + j, counters[j].name, counters[j].val);
-    } 
+    }
   }
 
   int size = org_signal_cdsi_table_statistics_encode(rsp, out, out_size);
@@ -388,7 +385,7 @@ int enclave_new_client(
           &c->handshake, NOISE_PROTOCOL_DEFINITION, NOISE_ROLE_RESPONDER)),
       free_client);
   NoiseDHState *local_keypair = noise_handshakestate_get_local_keypair_dh(c->handshake);
-  
+
   TEST_LOG("client: %p", c);
   CHECK(0 == pthread_rwlock_rdlock(&g_handshakestart_mu));
   GOTO_IF_ERROR(err = validate_privkey(sizeof(g_privkey), g_privkey), unlock_handshake);
@@ -514,12 +511,11 @@ int enclave_rate_limit(
     return err_ENCLAVE__RATELIMIT__REQUEST_PB_INVALID;
   }
   c->req = req;
-  c->return_acis_without_uaks = req->return_acis_without_uaks;
 
   // Check old token.  If valid, set computed output size.
   TEST_LOG("ratelimit_validate_received_rate_limit_token");
   RETURN_IF_ERROR(ratelimit_validate_received_rate_limit_token(c->req));
-  
+
   // divide the size in bytes by 8 to get the size in uint64_ts. Use shift for
   // fast constant time division by power of 2.
   *computed_request_size = req->new_e164s.size >> 3;
@@ -620,7 +616,7 @@ int enclave_run(
   oe_random(sipkey, FIXEDMAP_HALFSIPHASH_KEYSIZE);
   GOTO_IF_ERROR(err = fixedset_new(&index, sizeof(aci_uak_pair), sipkey), client_unlock);
   GOTO_IF_ERROR(err = load_aci_uak_pairs(index, num_aci_uak_pairs, (aci_uak_pair *)c->req->aci_uak_pairs.buf_p), free_index);
-  
+
   // --- Prepare and execute query ---
   // merge e164s
   // The following block has the same effect as two memcpy calls:
@@ -628,7 +624,7 @@ int enclave_run(
   //   memcpy(e164s, c->req->prev_e164s.buf_p, c->req->prev_e164s.size);
   //   memcpy(e164s + c->req->prev_e164s.size, c->req->new_e164s.buf_p, c->req->new_e164s.size);
   //
-  // However it performs the operations with oblivious writes to prevent leaking the size of the 
+  // However it performs the operations with oblivious writes to prevent leaking the size of the
   // `new_e164s` array.
   uint8_t *e164s;
   GOTO_IF_ERROR(err = MALLOCZ_SIZE(e164s, size_e164s), free_index);
@@ -654,7 +650,7 @@ int enclave_run(
     // (2) the new_e164s are allocated after the prev_e164s in that array.
     ((uint64_t*)e164s)[i] = U64_TERNARY(i < prev_e164s_size, *(prev_e164s + i), *(new_e164s + i - prev_e164s_size));
   }
-  
+
   signal_user_record *user_records;
   GOTO_IF_ERROR(err = MALLOCZ_SIZE(user_records, num_e164s * sizeof(*user_records)), free_e164s);
   TEST_LOG("sharded_ohtable_get_batch size=%zu", sizeof(*user_records) * num_e164s);
@@ -663,14 +659,12 @@ int enclave_run(
   // process response
   e164_pni_aci_triple *out_triples;
   GOTO_IF_ERROR(err = MALLOCZ_SIZE(out_triples, num_e164s * sizeof(*out_triples)), free_user_records);
-  TEST_LOG("create_e164_pni_aci_triples(g_return_acis_without_uaks=%d, c->return_acis_without_uaks=%d)", g_return_acis_without_uaks, c->return_acis_without_uaks);
   GOTO_IF_ERROR(
       err = create_e164_pni_aci_triples(
           index,
           num_e164s,
           (uint64_t *)e164s,
           user_records,
-          g_return_acis_without_uaks & c->return_acis_without_uaks,
           out_triples),
       free_user_records);
 
@@ -764,9 +758,9 @@ static error_t wrap_in_ereport(
   uint8_t *endorsements_buffer = NULL;
   size_t endorsements_buffer_size = 0;
   oe_result_t result = oe_get_evidence(
-      &sgx_remote_uuid, 0, 
-      custom_claims_buffer, custom_claims_buffer_size, 
-      NULL, 0, 
+      &sgx_remote_uuid, 0,
+      custom_claims_buffer, custom_claims_buffer_size,
+      NULL, 0,
       &evidence_buffer, &evidence_buffer_size,
       &endorsements_buffer, &endorsements_buffer_size);
   if (result != OE_OK) {

@@ -41,8 +41,6 @@ public class EnclaveConfiguration {
 
   private boolean simulated;
 
-  private boolean returnAcisWithoutUaks = false;
-
   public String getEnclaveId() {
     return enclaveId;
   }
@@ -105,13 +103,5 @@ public class EnclaveConfiguration {
 
   public void setMaxOutstandingRequests(final int maxOutstandingRequests) {
     this.maxOutstandingRequests = maxOutstandingRequests;
-  }
-
-  public boolean isReturnAcisWithoutUaks() {
-    return returnAcisWithoutUaks;
-  }
-
-  public void setReturnAcisWithoutUaks(final boolean returnAcisWithoutUaks) {
-    this.returnAcisWithoutUaks = returnAcisWithoutUaks;
   }
 }

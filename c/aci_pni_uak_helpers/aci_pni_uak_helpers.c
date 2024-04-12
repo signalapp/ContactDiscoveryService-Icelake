@@ -26,7 +26,6 @@ error_t create_e164_pni_aci_triples(
     size_t num_e164s,
     uint64_t e164s[num_e164s],
     signal_user_record ohtable_response[num_e164s],
-    bool return_acis_without_uaks,
     e164_pni_aci_triple out_triples[num_e164s])
 {
     memset(out_triples, 0, num_e164s * sizeof(*out_triples));
@@ -48,7 +47,7 @@ error_t create_e164_pni_aci_triples(
         // We store the UAK as all zeros in the OHTable if there isn't an associated UAK,
         // in which case we never want to return the ACI.  We do the lookup into the
         // map regardless, but then check to make sure the UAK is nonzero as well.
-        bool add_aci = return_acis_without_uaks | (fixedset_get(index, &pair) & ((r.uak[0] | r.uak[1]) != 0));
+        bool add_aci = fixedset_get(index, &pair) & ((r.uak[0] | r.uak[1]) != 0);
         uint64_t aci_and = add_aci ? UINT64_MAX : 0;
         // This should give us:
         //   - Everything all zeros, if e164 was not found

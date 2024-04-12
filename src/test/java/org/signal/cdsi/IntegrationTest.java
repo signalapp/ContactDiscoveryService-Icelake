@@ -488,31 +488,6 @@ class IntegrationTest {
   }
 
   @Test
-  void testReturnAcisWithoutUaks() throws Exception {
-    try (final CdsiWebsocket cdsiWebsocket = Mono.from(webSocketClient.connect(
-        CdsiWebsocket.class,
-        AuthenticationHelper.HTTP_REQUEST)).block()) {
-
-      assertNotNull(cdsiWebsocket);
-
-      final ClientResponse clientResponse = cdsiWebsocket.run(ClientRequest
-          .newBuilder()
-          .setNewE164S(ByteString.copyFrom(ByteBuffer
-              .allocate(8)
-              .putLong(Long.parseLong(TEST_NUM.substring(1)))
-              .array()))
-          .setReturnAcisWithoutUaks(true)
-          .build());
-
-      assertArrayEquals(
-          concat(
-              e164PniAciTriple(E164, PNI, ACI)),
-          clientResponse.getE164PniAciTriples().toByteArray());
-      assertEquals(1, clientResponse.getDebugPermitsUsed());
-    }
-  }
-
-  @Test
   void testInvalidToken() throws Exception {
     tokenRateLimiter.setValidateRetryAfter(Optional.of(Duration.ofSeconds(13)));
 

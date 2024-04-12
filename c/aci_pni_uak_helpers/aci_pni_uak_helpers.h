@@ -78,7 +78,6 @@ error_t create_e164_pni_aci_triples(
     size_t num_e164s,
     uint64_t e164s[num_e164s],
     signal_user_record ohtable_response[num_e164s],
-    bool return_acis_without_uaks,
     e164_pni_aci_triple out_triples[num_e164s]);
 
 #endif // CDSI_ENC_ACI_LOOKUP_H

@@ -77,7 +77,7 @@ void* handshake_thread_fn(void* input) {
         uint64_t client_id;
         uint8_t ereport[1024];
         size_t ereport_size = 0;
-        args->oe_result =  enclave_new_client(args->enclave, &args->new_client_result, &client_id, sizeof(ereport), ereport, &ereport_size);   
+        args->oe_result =  enclave_new_client(args->enclave, &args->new_client_result, &client_id, sizeof(ereport), ereport, &ereport_size);
         if(args->oe_result != OE_OK) {
             TEST_LOG("OE call error for enclave_new_client: %d (%s)", args->oe_result, oe_result_str(args->oe_result));
             break;
@@ -97,7 +97,7 @@ void* handshake_thread_fn(void* input) {
         }
 
 
-        args->oe_result =  enclave_close_client(args->enclave, &args->close_result, client_id);   
+        args->oe_result =  enclave_close_client(args->enclave, &args->close_result, client_id);
         if(args->oe_result != OE_OK) {
             TEST_LOG("OE call error for enclave_close_client: %d (%s)", args->oe_result, oe_result_str(args->oe_result));
             break;
@@ -234,7 +234,7 @@ int setup_enclave(const char *enclave_filename, oe_enclave_t **enclave, size_t a
 
     // Call into enclave to initialize
     fprintf(stderr, "initializing enclave\n");
-    OPEN_ENCLAVE_CALL_TEST_ERR(enclave_init(*enclave, &retval, available_bytes, 1.6, num_shards, stash_overflow_size, false));
+    OPEN_ENCLAVE_CALL_TEST_ERR(enclave_init(*enclave, &retval, available_bytes, 1.6, num_shards, stash_overflow_size));
     ENCLAVE_TEST_ERR(retval);
     OPEN_ENCLAVE_CALL_TEST_ERR(enclave_attest(*enclave, &retval));
     ENCLAVE_TEST_ERR(retval);
@@ -341,7 +341,7 @@ error_t test_mutithread_attest_and_handshake(oe_enclave_t *enclave) {
 
     struct handshake_thread_fn_args hs_args[] = {{.enclave = enclave, .num_handshakes = num_handshakes},{.enclave = enclave, .num_handshakes = num_handshakes}};
     struct attest_thread_fn_args att_args = {.enclave = enclave, .num_attestations = num_attests};
-    
+
     pthread_t tids[3];
     if(pthread_create(tids + 0, NULL, handshake_thread_fn, &hs_args[0]) != 0) {
         TEST_LOG("Failed to create first handshake thread");
@@ -349,11 +349,11 @@ error_t test_mutithread_attest_and_handshake(oe_enclave_t *enclave) {
     }
     if(pthread_create(tids + 1, NULL, attest_thread_fn, &att_args) != 0) {
         TEST_LOG("Failed to create attester thread");
-        
+
     }
     if(pthread_create(tids + 2, NULL, handshake_thread_fn, &hs_args[1]) != 0) {
         TEST_LOG("Failed to create second handshake thread");
-        
+
     }
 
     for (size_t i = 0; i < 3; ++i)

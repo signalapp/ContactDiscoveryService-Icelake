@@ -151,8 +151,7 @@ public class Enclave implements AutoCloseable {
         enclaveConfiguration.getLoadFactor(),
         this.numShards,
         extractResource("enclave-" + enclaveConfiguration.getEnclaveId() + ".signed").getAbsolutePath(),
-        enclaveConfiguration.isSimulated(),
-        enclaveConfiguration.isReturnAcisWithoutUaks());
+        enclaveConfiguration.isSimulated());
 
     this.requestSizeDistributionSummary = DistributionSummary.builder(name(getClass(), "requestSize"))
         .distributionStatisticExpiry(Duration.ofHours(2))
@@ -486,10 +485,12 @@ public class Enclave implements AutoCloseable {
    * @param availableMemory   the maximum memory to use building the enclave tables, in bytes.
    * @param loadFactor Ratio of number of ORAM blocks to ORAM locations.
    * @param num_shards the number of ORAM shards/threads inside the enclave
+   * @param enclavePath the path to the enclave shared library object
+   * @param simulated whether the enclave should simulate attestation
    * @return handle to enclave
    */
   @VisibleForTesting
-  static native long nativeEnclaveInit(long availableMemory, double loadFactor, int num_shards, String enclavePath, boolean simulated, boolean returnAcisWithoutUaks)
+  static native long nativeEnclaveInit(long availableMemory, double loadFactor, int num_shards, String enclavePath, boolean simulated)
       throws EnclaveException;
 
   /** Load data into an existing enclave
