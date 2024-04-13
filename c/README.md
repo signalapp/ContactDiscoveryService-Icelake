@@ -43,7 +43,7 @@ Once your environment is set up, you can build with
 make all # or make docker_all
 ```
 
-By default, encalve binaries will be built with a small-memory-footprint, test configuration. To build a full-scale version that uses up to 120 GiB of memory, use:
+By default, enclave binaries will be built with a small-memory-footprint, test configuration. To build a full-scale version that uses up to 120 GiB of memory, use:
 
 ```
 make CONFIG=cds.conf install
@@ -103,4 +103,3 @@ algorithm oblivious at the expense of the running time, such as using a linear s
 There is often a more efficient alternative oblivious algorithm and these should be used when they improve performance. 
 One important example is the oblivious [bitonic sort](http://www.cs.kent.edu/~batcher/sort.pdf), which sorts in 
 time $O(N\log^{2}N)$ with small constants.
-
