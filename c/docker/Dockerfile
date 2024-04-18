@@ -39,17 +39,17 @@ RUN wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.k
     wget -qO - https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
     apt-get update && \
     apt -y install \
-    libsgx-ae-id-enclave=1.15.100.3-focal1 \
-    libsgx-ae-pce=2.18.101.1-focal1 \
-    libsgx-ae-qe3=1.15.100.3-focal1 \
-    libsgx-dcap-ql=1.15.100.3-focal1 \
-    libsgx-dcap-ql-dev=1.15.100.3-focal1 \
-    libsgx-enclave-common=2.18.101.1-focal1 \
-    libsgx-headers=2.18.101.1-focal1 \
-    libsgx-pce-logic=1.15.100.3-focal1 \
-    libsgx-qe3-logic=1.15.100.3-focal1 \
-    libsgx-urts=2.18.101.1-focal1 \
-    open-enclave=0.18.4
+    libsgx-ae-id-enclave=1.20.100.2-focal1 \
+    libsgx-ae-pce=2.23.100.2-focal1 \
+    libsgx-ae-qe3=1.20.100.2-focal1 \
+    libsgx-dcap-ql=1.20.100.2-focal1 \
+    libsgx-dcap-ql-dev=1.20.100.2-focal1 \
+    libsgx-enclave-common=2.23.100.2-focal1 \
+    libsgx-headers=2.23.100.2-focal1 \
+    libsgx-pce-logic=1.20.100.2-focal1 \
+    libsgx-qe3-logic=1.20.100.2-focal1 \
+    libsgx-urts=2.23.100.2-focal1 \
+    open-enclave=0.19.4
 
 ENV PATH="/opt/openenclave/bin:${PATH}"
 ENV JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"

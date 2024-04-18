@@ -14,6 +14,19 @@ git submodule update
 mvn verify
 ```
 
+Note:  running tests locally currently requires the installation of OpenSSL 1.1.1,
+which is standard in Ubuntu 20.04 but not in 22.04.  To install, you can:
+
+```
+wget https://ftp.openssl.org/source/openssl-1.1.1u.tar.gz
+tar xvzf openssl-1.1.1u.tar.gz 
+cd openssl-1.1.1u/
+./config 
+make  -j8
+sudo make install -j8
+sudo ldconfig
+```
+
 ## Enclave releases
 
 To create a new enclave release, run the following Maven command:
