@@ -1,6 +1,6 @@
 # To build use:
 # docker build -t oebuild .
-FROM amd64/debian:bullseye-20220509
+FROM amd64/debian:bullseye-20240408@sha256:ad47d883924a75f704037e49c71c20ef209fb3ba05be7070322cb45d2e089261
 
 LABEL description="linux build environment for sgx."
 
