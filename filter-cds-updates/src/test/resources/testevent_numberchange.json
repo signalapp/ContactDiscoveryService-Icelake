@@ -1,0 +1,56 @@
+{
+  "Records": [
+    {
+      "awsRegion": "us-east-1",
+      "eventID": "88888888-85b6-4a4b-a74e-bf4688888888",
+      "eventName": "MODIFY",
+      "userIdentity": null,
+      "recordFormat": "application/json",
+      "tableName": "Signal_Accounts_Staging",
+      "dynamodb": {
+        "ApproximateCreationDateTime": 1630110857000,
+        "Keys": {
+          "U": {
+            "B": "IiIiIiIiIiIiIiIiIiIiIg=="
+          }
+        },
+        "OldImage": {
+          "U": {
+            "B": "IiIiIiIiIiIiIiIiIiIiIg=="
+          },
+          "V": {
+            "N": "118"
+          },
+          "P": {
+            "S": "+12223334444"
+          },
+          "C": {
+            "BOOL": true
+          },
+          "PNI": {
+            "B": "EREREREREREREREREREREQ=="
+          }
+        },
+        "NewImage": {
+          "U": {
+            "B": "IiIiIiIiIiIiIiIiIiIiIg=="
+          },
+          "V": {
+            "N": "119"
+          },
+          "P": {
+            "S": "+13334445555"
+          },
+          "C": {
+            "BOOL": true
+          },
+          "PNI": {
+            "B": "EREREREREREREREREREREQ=="
+          }
+        },
+        "SizeBytes": 7001
+      },
+      "eventSource": "aws:dynamodb"
+    }
+  ]
+}

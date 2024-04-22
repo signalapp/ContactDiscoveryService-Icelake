@@ -80,3 +80,23 @@ jobs:
 
       - name: Build and test with Maven
         run: mvn -f cdsi/pom.xml -e -B verify
+
+  test-lambda:
+    name: Build and test lambda
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout main project
+        uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4.1.1
+        with:
+          submodules: true
+          path: cdsi
+      - name: Set up JDK 17
+        uses: actions/setup-java@9704b39bf258b59bc04b50fa2dd55e9ed76b47a8 # v4.1.0
+        with:
+          distribution: 'temurin'
+          java-version: 17
+          cache: 'maven'
+      - name: Build and test with Maven
+        working-directory: cdsi/filter-cds-updates
+        run: ../mvnw -e -B verify

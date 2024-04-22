@@ -87,6 +87,10 @@ accountTable:
   streamName: kinesis-stream-name
 ```
 
+This system relies on an AWS Lambda (code in the `filter-cds-updates` subdirectory), which receives a DynamoDB update stream from the Account
+table and filters out just the subset of updates that contact discovery would find useful.  The Lambda forwards those to a Kinesis stream, which
+CDSi pulls from.
+
 #### Authentication secret
 
 End users communicate directly with CDSi. To authenticate users, CDSi uses Signal's standard external service credential system. Consequently, the following property must be set:
