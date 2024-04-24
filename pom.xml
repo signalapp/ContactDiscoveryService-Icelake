@@ -10,7 +10,7 @@
   <parent>
     <groupId>io.micronaut</groupId>
     <artifactId>micronaut-parent</artifactId>
-    <version>3.9.4</version>
+    <version>3.10.4</version>
   </parent>
 
   <properties>
@@ -20,10 +20,10 @@
     <micronaut.runtime>netty</micronaut.runtime>
     <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
 
-    <testcontainers.version>1.17.5</testcontainers.version>
-    <aws.sdk.version>2.18.19</aws.sdk.version>
-    <commons.codec.version>1.15</commons.codec.version>
-    <guava.version>32.1.2-jre</guava.version>
+    <testcontainers.version>1.19.7</testcontainers.version>
+    <aws.sdk.version>2.25.34</aws.sdk.version>
+    <commons.codec.version>1.16.1</commons.codec.version>
+    <guava.version>33.1.0-jre</guava.version>
   </properties>
 
   <repositories>
@@ -174,6 +174,11 @@
         <exclusion>
           <groupId>com.google.guava</groupId>
           <artifactId>guava</artifactId>
+        </exclusion>
+        <exclusion>
+          <!-- Conflicts with toplevel commons-codec via dependency introduced in com.amazonaws:aws-java-sdk-core -->
+          <groupId>commons-codec</groupId>
+          <artifactId>commons-codec</artifactId>
         </exclusion>
       </exclusions>
     </dependency>
