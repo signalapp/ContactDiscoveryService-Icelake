@@ -10,13 +10,18 @@
 
   <properties>
     <maven.compiler.source>17</maven.compiler.source>
-    <!-- Lambda’s runtime was limited Java 11 when this was last updated -->
-    <maven.compiler.release>11</maven.compiler.release>
+    <maven.compiler.release>17</maven.compiler.release>
 
-    <aws.lambda.java.events.version>3.11.0</aws.lambda.java.events.version>
-    <httpcore.version>4.4.13</httpcore.version>
-    <netty.version>4.1.68.Final</netty.version>
-    <junit.version>5.8.2</junit.version>
+    <aws-lambda-java-core.version>1.2.3</aws-lambda-java-core.version>
+    <aws-lambda-java-events.version>3.11.2</aws-lambda-java-events.version>
+    <aws-sdk.version>2.25.34</aws-sdk.version>
+    <guava.version>33.1.0-jre</guava.version>
+    <jackson.version>2.16.2</jackson.version>
+    <netty.version>4.1.108.Final</netty.version>
+
+    <aws-lambda-java-tests.version>1.1.1</aws-lambda-java-tests.version>
+    <junit.version>5.10.2</junit.version>
+    <mockito-core.version>5.11.0</mockito-core.version>
   </properties>
 
   <dependencyManagement>
@@ -24,14 +29,14 @@
       <dependency>
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>bom</artifactId>
-        <version>2.17.112</version>
+        <version>${aws-sdk.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>
         <artifactId>aws-lambda-java-events</artifactId>
-        <version>${aws.lambda.java.events.version}</version>
+        <version>${aws-lambda-java-events.version}</version>
       </dependency>
       <dependency>
         <groupId>io.netty</groupId>
@@ -41,6 +46,13 @@
         <version>${netty.version}</version>
       </dependency>
       <dependency>
+        <groupId>com.fasterxml.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
         <groupId>org.junit</groupId>
         <artifactId>junit-bom</artifactId>
         <type>pom</type>
@@ -48,9 +60,21 @@
         <version>${junit.version}</version>
       </dependency>
       <dependency>
+        <!--
+          Resolve convergence error between
+            - org.apache.httpcomponents:httpclient:4.5.13
+            - software.amazon.awssdk:apache-client:2.25.34
+         Both are transitive dependencies via the kinesis SDK.
+         -->
         <groupId>org.apache.httpcomponents</groupId>
-        <artifactId>httpcore</artifactId>
-        <version>${httpcore.version}</version>
+        <artifactId>httpclient</artifactId>
+        <version>[4.5.13,)</version>
+        <exclusions>
+          <exclusion>
+            <groupId>commons-codec</groupId>
+            <artifactId>commons-codec</artifactId>
+          </exclusion>
+        </exclusions>
       </dependency>
     </dependencies>
   </dependencyManagement>
@@ -59,7 +83,7 @@
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-lambda-java-core</artifactId>
-      <version>1.2.1</version>
+      <version>${aws-lambda-java-core.version}</version>
     </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>
@@ -72,12 +96,11 @@
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
-      <version>2.12.5</version>
     </dependency>
     <dependency>
       <groupId>com.google.guava</groupId>
       <artifactId>guava</artifactId>
-      <version>31.0.1-jre</version>
+      <version>${guava.version}</version>
     </dependency>
     <dependency>
       <groupId>org.junit.jupiter</groupId>
@@ -87,13 +110,13 @@
     <dependency>
       <groupId>org.mockito</groupId>
       <artifactId>mockito-core</artifactId>
-      <version>4.2.0</version>
+      <version>${mockito-core.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-lambda-java-tests</artifactId>
-      <version>1.1.1</version>
+      <version>${aws-lambda-java-tests.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
