@@ -10,17 +10,17 @@ import io.micronaut.core.async.publisher.Publishers;
 import io.micronaut.health.HealthStatus;
 import io.micronaut.management.health.indicator.HealthIndicator;
 import io.micronaut.management.health.indicator.HealthResult;
-import io.micronaut.management.health.indicator.annotation.Readiness;
+import io.micronaut.management.health.indicator.annotation.Liveness;
 import org.reactivestreams.Publisher;
 import org.signal.cdsi.enclave.Enclave;
 
 @Context
-@Readiness
-public class InitialAttestationReadinessIndicator implements HealthIndicator {
+@Liveness
+public class InitialAttestationLivenessIndicator implements HealthIndicator {
 
   private final Enclave enclave;
 
-  public InitialAttestationReadinessIndicator(final Enclave enclave) {
+  public InitialAttestationLivenessIndicator(final Enclave enclave) {
     this.enclave = enclave;
   }
 
