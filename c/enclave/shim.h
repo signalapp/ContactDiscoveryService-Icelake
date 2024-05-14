@@ -62,6 +62,17 @@ inline const char* oe_result_str(oe_result_t result) {
 oe_result_t oe_attester_initialize();
 inline oe_result_t oe_attester_initialize() { return OE_OK; }
 
+oe_result_t oe_attester_select_format(
+    const oe_uuid_t* format_ids,
+    size_t format_ids_length,
+    oe_uuid_t* selected_format_id);
+inline oe_result_t oe_attester_select_format(
+    const oe_uuid_t* format_ids,
+    size_t format_ids_length,
+    oe_uuid_t* selected_format_id) {
+  memcpy(selected_format_id, format_ids, sizeof(oe_uuid_t));
+  return OE_OK;
+}
 oe_result_t oe_serialize_custom_claims(
     const oe_claim_t* custom_claims,
     size_t custom_claims_length,
