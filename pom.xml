@@ -24,6 +24,7 @@
     <aws.sdk.version>2.25.34</aws.sdk.version>
     <commons.codec.version>1.16.1</commons.codec.version>
     <guava.version>33.1.0-jre</guava.version>
+    <make.docker.prefix>docker_</make.docker.prefix>
   </properties>
 
   <repositories>
@@ -158,6 +159,13 @@
       <groupId>com.almworks.sqlite4java</groupId>
       <artifactId>sqlite4java</artifactId>
       <version>1.0.392</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.github.ganadist.sqlite4java</groupId>
+      <artifactId>libsqlite4java-osx-aarch64</artifactId>
+      <version>1.0.392</version>
+      <type>dylib</type>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -362,7 +370,7 @@
             <configuration>
               <executable>make</executable>
               <!-- Cleans first to ensure build is reproducible -->
-              <commandlineArgs>CONFIG=cds.conf RESOURCES_DIR=${basedir}/src/main/resources/org/signal/cdsi/enclave -C c clean docker_install</commandlineArgs>
+              <commandlineArgs>CONFIG=cds.conf RESOURCES_DIR=${basedir}/src/main/resources/org/signal/cdsi/enclave -C c clean ${make.docker.prefix}install</commandlineArgs>
             </configuration>
           </execution>
 
@@ -374,7 +382,7 @@
             </goals>
             <configuration>
               <executable>make</executable>
-              <commandlineArgs>ENCLAVE_ID=test CONFIG=cds-test.conf RESOURCES_DIR=${project.build.testOutputDirectory}/org/signal/cdsi/enclave ADDITIONAL_CFLAGS="-DINSECURE" -C c docker_install</commandlineArgs>
+              <commandlineArgs>ENCLAVE_ID=test CONFIG=cds-test.conf RESOURCES_DIR=${project.build.testOutputDirectory}/org/signal/cdsi/enclave ADDITIONAL_CFLAGS="-DINSECURE" -C c ${make.docker.prefix}install</commandlineArgs>
             </configuration>
           </execution>
         </executions>
@@ -426,7 +434,7 @@
                 </goals>
                 <configuration>
                   <executable>make</executable>
-                  <commandlineArgs>ENCLAVE_ID=dev CONFIG=cds-test.conf RESOURCES_DIR=${project.build.outputDirectory}/org/signal/cdsi/enclave ADDITIONAL_CFLAGS="-DINSECURE" -C c docker_install</commandlineArgs>
+                  <commandlineArgs>ENCLAVE_ID=dev CONFIG=cds-test.conf RESOURCES_DIR=${project.build.outputDirectory}/org/signal/cdsi/enclave ADDITIONAL_CFLAGS="-DINSECURE" -C c ${make.docker.prefix}install</commandlineArgs>
                 </configuration>
               </execution>
             </executions>

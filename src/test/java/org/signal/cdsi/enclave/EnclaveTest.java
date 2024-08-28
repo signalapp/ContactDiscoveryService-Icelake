@@ -29,9 +29,12 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.signal.cdsi.limits.TokenRateLimiter;
 import org.signal.cdsi.util.UUIDUtil;
 
+@EnabledOnOs(OS.LINUX)
 class EnclaveTest {
 
   private ExecutorService enclaveExecutor;
