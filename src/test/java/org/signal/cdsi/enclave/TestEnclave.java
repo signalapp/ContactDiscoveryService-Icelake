@@ -10,6 +10,8 @@ import io.micronaut.context.annotation.Context;
 import io.micronaut.context.annotation.Replaces;
 import io.micronaut.context.annotation.Requires;
 import jakarta.inject.Named;
+import org.junit.jupiter.api.condition.EnabledOnOs;
+import org.junit.jupiter.api.condition.OS;
 import org.signal.cdsi.limits.TokenRateLimiter;
 import java.io.IOException;
 import java.time.Clock;
@@ -18,6 +20,7 @@ import java.util.concurrent.ExecutorService;
 @Context
 @Requires(env = "test")
 @Replaces(Enclave.class)
+@EnabledOnOs(OS.LINUX)
 public class TestEnclave extends Enclave {
 
   private boolean overloaded = false;
