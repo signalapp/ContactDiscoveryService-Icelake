@@ -131,7 +131,7 @@ public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback 
     serverSocket.setReuseAddress(false);
     port = serverSocket.getLocalPort();
     serverSocket.close();
-    server = ServerRunner.createServerFromCommandLineArgs(new String[]{"-inMemory", "-port", String.valueOf(port)});
+    server = ServerRunner.createServerFromCommandLineArgs(new String[]{"-inMemory", "-port", String.valueOf(port), "-disableTelemetry", "true"});
     server.start();
   }
 
