@@ -21,10 +21,11 @@
     <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
 
     <testcontainers.version>1.20.1</testcontainers.version>
-    <aws.sdk.version>2.25.34</aws.sdk.version>
+    <aws.sdk.version>2.27.15</aws.sdk.version>
     <commons.codec.version>1.16.1</commons.codec.version>
     <guava.version>33.1.0-jre</guava.version>
     <make.docker.prefix>docker_</make.docker.prefix>
+    <httpcomponents.httpcore.version>4.4.16</httpcomponents.httpcore.version>
   </properties>
 
   <repositories>
@@ -147,7 +148,19 @@
           <groupId>commons-codec</groupId>
           <artifactId>commons-codec</artifactId>
         </exclusion>
+        <!-- software.amazon.awssdk:dynamodb depends on software.amazon.awssdk:apache-client,
+        which directly and transitively depends on different versions of the httpcore package.
+        Excluding the package here and making it a direct dependency to resolve that conflict. -->
+        <exclusion>
+          <groupId>org.apache.httpcomponents</groupId>
+          <artifactId>httpcore</artifactId>
+        </exclusion>
       </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.apache.httpcomponents</groupId>
+      <artifactId>httpcore</artifactId>
+      <version>${httpcomponents.httpcore.version}</version>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
