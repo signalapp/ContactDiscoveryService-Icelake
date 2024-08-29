@@ -301,7 +301,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-dependency-plugin</artifactId>
-        <version>3.1.2</version>
+        <version>3.8.0</version>
         <executions>
           <execution>
             <id>copy</id>
@@ -371,7 +371,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.0.0-M5</version>
+        <version>3.5.0</version>
         <configuration>
           <systemProperties>
             <property>
@@ -385,7 +385,7 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>exec-maven-plugin</artifactId>
-        <version>3.0.0</version>
+        <version>3.4.1</version>
 
         <executions>
           <execution>
@@ -418,7 +418,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>3.0.0-M3</version>
+        <version>3.5.0</version>
         <executions>
           <execution>
             <goals>
