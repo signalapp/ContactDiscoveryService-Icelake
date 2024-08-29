@@ -26,6 +26,7 @@
     <guava.version>33.3.0-jre</guava.version>
     <make.docker.prefix>docker_</make.docker.prefix>
     <httpcomponents.httpcore.version>4.4.16</httpcomponents.httpcore.version>
+    <hdrhistogram.version>2.2.2</hdrhistogram.version>
   </properties>
 
   <repositories>
@@ -68,7 +69,20 @@
     <dependency>
       <groupId>com.azure</groupId>
       <artifactId>azure-cosmos</artifactId>
-      <version>4.39.0</version>
+      <version>4.63.2</version>
+      <exclusions>
+        <!-- com.azure:azure-cosmos directly and transitively depends on different versions of the hdrhistogram package.
+        Excluding the package here and making it a direct dependency to resolve that internal conflict. -->
+        <exclusion>
+          <groupId>org.hdrhistogram</groupId>
+          <artifactId>HdrHistogram</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.hdrhistogram</groupId>
+      <artifactId>HdrHistogram</artifactId>
+      <version>${hdrhistogram.version}</version>
     </dependency>
     <dependency>
       <groupId>com.google.protobuf</groupId>
