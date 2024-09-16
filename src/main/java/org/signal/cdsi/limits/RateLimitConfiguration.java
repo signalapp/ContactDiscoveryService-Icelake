@@ -5,7 +5,7 @@
 
 package org.signal.cdsi.limits;
 
-import javax.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.time.Duration;
 
 public abstract class RateLimitConfiguration {

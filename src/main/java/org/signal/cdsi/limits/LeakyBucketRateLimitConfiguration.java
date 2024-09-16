@@ -9,9 +9,9 @@ package org.signal.cdsi.limits;
 import io.micronaut.context.annotation.Context;
 import io.micronaut.context.annotation.EachProperty;
 import io.micronaut.context.annotation.Parameter;
-import javax.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotBlank;
 
-@EachProperty("leakyBucketLimit")
+@EachProperty("leaky-bucket-limit")
 @Context
 public class LeakyBucketRateLimitConfiguration extends RateLimitConfiguration {
 

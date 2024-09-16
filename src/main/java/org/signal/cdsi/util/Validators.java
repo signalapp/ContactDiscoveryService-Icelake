@@ -8,12 +8,14 @@ package org.signal.cdsi.util;
 
 import io.micronaut.context.annotation.Factory;
 import io.micronaut.core.annotation.AnnotationValue;
+import io.micronaut.core.annotation.Introspected;
 import io.micronaut.validation.validator.constraints.ConstraintValidator;
 import io.micronaut.validation.validator.constraints.ConstraintValidatorContext;
 import jakarta.inject.Singleton;
 import java.nio.charset.StandardCharsets;
 
 @Factory
+@Introspected
 public class Validators {
 
   @Singleton

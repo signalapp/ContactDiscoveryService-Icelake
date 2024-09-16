@@ -2,7 +2,7 @@ package org.signal.cdsi.limits;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.annotations.VisibleForTesting;
-import javax.validation.constraints.Positive;
+import jakarta.validation.constraints.Positive;
 
 public class RetryAfterMessage {
   @Positive

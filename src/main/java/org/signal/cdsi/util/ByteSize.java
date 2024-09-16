@@ -5,8 +5,8 @@
 
 package org.signal.cdsi.util;
 
-import javax.validation.Constraint;
-import javax.validation.Payload;
+import jakarta.validation.Constraint;
+import jakarta.validation.Payload;
 import java.lang.annotation.*;
 
 import static java.lang.annotation.ElementType.*;

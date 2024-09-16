@@ -7,8 +7,8 @@ package org.signal.cdsi.util;
 
 
 import io.micronaut.context.annotation.Context;
+import jakarta.annotation.PostConstruct;
 import javax.annotation.Nullable;
-import javax.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
