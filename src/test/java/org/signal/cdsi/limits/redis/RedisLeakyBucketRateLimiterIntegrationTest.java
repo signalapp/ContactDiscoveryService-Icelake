@@ -9,6 +9,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -74,7 +75,7 @@ public class RedisLeakyBucketRateLimiterIntegrationTest {
   void testSuccess() {
     final AsyncCommand<String, String, Object> asyncCommand = new AsyncCommand<>(noOverflow);
     asyncCommand.complete();
-    when(asyncCommands.evalsha(any(), eq(ScriptOutputType.INTEGER), any(), any()))
+    when(asyncCommands.evalsha(anyString(), eq(ScriptOutputType.INTEGER), any(String[].class), any(String[].class)))
         .thenReturn(asyncCommand);
 
     String aci = UUID.randomUUID().toString();
@@ -90,7 +91,7 @@ public class RedisLeakyBucketRateLimiterIntegrationTest {
   void testRateLimitExceeded() {
     final AsyncCommand<String, String, Object> asyncCommand = new AsyncCommand<>(overflow);
     asyncCommand.complete();
-    when(asyncCommands.evalsha(any(), eq(ScriptOutputType.INTEGER), any(), any()))
+    when(asyncCommands.evalsha(anyString(), eq(ScriptOutputType.INTEGER), any(String[].class), any(String[].class)))
         .thenReturn(asyncCommand);
 
     String aci = UUID.randomUUID().toString();
@@ -107,7 +108,7 @@ public class RedisLeakyBucketRateLimiterIntegrationTest {
   void testRedisClusterUnavailable() {
     final AsyncCommand<String, String, Object> asyncCommand = new AsyncCommand<>(noOverflow);
     asyncCommand.completeExceptionally(new RedisException("Unavailable"));
-    when(this.asyncCommands.evalsha(any(), eq(ScriptOutputType.INTEGER), any(), any()))
+    when(this.asyncCommands.evalsha(anyString(), eq(ScriptOutputType.INTEGER), any(String[].class), any(String[].class)))
         .thenReturn(asyncCommand);
 
     String aci = UUID.randomUUID().toString();

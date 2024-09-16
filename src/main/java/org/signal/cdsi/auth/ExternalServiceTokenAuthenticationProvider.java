@@ -42,7 +42,7 @@ import reactor.core.publisher.Mono;
  * Signal server.
  */
 @Singleton
-public class ExternalServiceTokenAuthenticationProvider implements AuthenticationProvider {
+public class ExternalServiceTokenAuthenticationProvider implements AuthenticationProvider<HttpRequest<?>> {
 
   private final byte[] sharedSecret;
   private final Duration tokenExpiration;
