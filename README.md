@@ -37,6 +37,16 @@ To create a new enclave release, run the following Maven command:
 
 ...and commit the new files in `src/main/resources/org/signal/cdsi/enclave`.
 
+## Host releases
+
+Host releases are built from `main` and tagged with a three-part version number (`X.Y.Z`).
+
+Changes that alter the Host/Enclave protocol require extra steps. If a previous enclave is still in use, before making the change create a branch with the naming scheme `enclave/<first 7 chars of MRENCLAVE>`. Subsequent deploys of the host for the previous enclave should use host artifacts from the `enclave/` branch.
+
+Builds from an enclave branch should be tagged `X.Y.Z-<first 7 chars of MRENCLAVE>`, where the `X.Y.Z` should match the current version number on `main`.
+
+When making a host change, merge to `main` and backport relevant updates to any active `enclave/` branches.
+
 ## Configuration
 
 The main CDSi application is built on the [Micronaut framework](https://micronaut.io/). It requires some runtime configuration to function outside a development environment.
