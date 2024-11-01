@@ -88,6 +88,11 @@
         </exclusion>
       </exclusions>
     </dependency>
+    <!-- com.azure:azure-cosmos recommends adding this dependency for optimal Jackson performance -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.module</groupId>
+      <artifactId>jackson-module-blackbird</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.hdrhistogram</groupId>
       <artifactId>HdrHistogram</artifactId>
