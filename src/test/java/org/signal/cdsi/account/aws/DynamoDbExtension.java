@@ -5,15 +5,13 @@
 
 package org.signal.cdsi.account.aws;
 
-import com.almworks.sqlite4java.SQLite;
-import com.amazonaws.services.dynamodbv2.local.main.ServerRunner;
-import com.amazonaws.services.dynamodbv2.local.server.DynamoDBProxyServer;
+import com.amazonaws.services.dynamodbv2.local.embedded.DynamoDBEmbedded;
+import com.amazonaws.services.dynamodbv2.local.shared.access.AmazonDynamoDBLocal;
+import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
@@ -24,10 +22,6 @@ import software.amazon.awssdk.services.dynamodb.model.KeyType;
 import software.amazon.awssdk.services.dynamodb.model.ProvisionedThroughput;
 import software.amazon.awssdk.services.dynamodb.model.StreamSpecification;
 import software.amazon.awssdk.services.dynamodb.streams.DynamoDbStreamsAsyncClient;
-import java.net.ServerSocket;
-import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
 
 public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback {
 
@@ -38,8 +32,7 @@ public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback 
       .writeCapacityUnits(20L)
       .build();
 
-  private DynamoDBProxyServer server;
-  private int port;
+  private AmazonDynamoDBLocal embedded;
 
   private final String tableName;
   private final String hashKeyName;
@@ -78,7 +71,7 @@ public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback 
   @Override
   public void afterEach(ExtensionContext context) {
     try {
-      server.stop();
+      embedded.shutdown();
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -87,7 +80,7 @@ public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback 
   @Override
   public void beforeEach(ExtensionContext context) throws Exception {
 
-    startServer();
+    embedded = DynamoDBEmbedded.create(true);
 
     initializeClient();
 
@@ -122,38 +115,10 @@ public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback 
     getDynamoDbClient().createTable(createTableRequest);
   }
 
-  private void startServer() throws Exception {
-    // Even though we're using AWS SDK v2, Dynamo's local implementation's canonical location
-    // is within v1 (https://github.com/aws/aws-sdk-java-v2/issues/982).  This does support
-    // v2 clients, though.
-    SQLite.setLibraryPath("target/lib");  // if you see a library failed to load error, you need to run mvn test-compile at least once first
-    ServerSocket serverSocket = new ServerSocket(0);
-    serverSocket.setReuseAddress(false);
-    port = serverSocket.getLocalPort();
-    serverSocket.close();
-    server = ServerRunner.createServerFromCommandLineArgs(new String[]{"-inMemory", "-port", String.valueOf(port), "-disableTelemetry", "true"});
-    server.start();
-  }
-
   private void initializeClient() {
-    dynamoDbClient = DynamoDbClient.builder()
-        .endpointOverride(URI.create("http://localhost:" + port))
-        .region(Region.of("local-test-region"))
-        .credentialsProvider(StaticCredentialsProvider.create(
-            AwsBasicCredentials.create("accessKey", "secretKey")))
-        .build();
-    dynamoDbAsyncClient = DynamoDbAsyncClient.builder()
-        .endpointOverride(URI.create("http://localhost:" + port))
-        .region(Region.of("local-test-region"))
-        .credentialsProvider(StaticCredentialsProvider.create(
-            AwsBasicCredentials.create("accessKey", "secretKey")))
-        .build();
-    dynamoDbStreamsAsyncClient = DynamoDbStreamsAsyncClient.builder()
-        .endpointOverride(URI.create("http://localhost:" + port))
-        .region(Region.of("local-test-region"))
-        .credentialsProvider(StaticCredentialsProvider.create(
-            AwsBasicCredentials.create("accessKey", "secretKey")))
-        .build();
+    dynamoDbClient = embedded.dynamoDbClient();
+    dynamoDbAsyncClient = embedded.dynamoDbAsyncClient();
+    dynamoDbStreamsAsyncClient = embedded.dynamoDbStreamsAsyncClient();
   }
 
   public static class DynamoDbExtensionBuilder {
