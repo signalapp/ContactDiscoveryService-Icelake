@@ -13,15 +13,15 @@
     <maven.compiler.release>17</maven.compiler.release>
 
     <aws-lambda-java-core.version>1.2.3</aws-lambda-java-core.version>
-    <aws-lambda-java-events.version>3.11.2</aws-lambda-java-events.version>
-    <aws-sdk.version>2.25.34</aws-sdk.version>
-    <guava.version>33.1.0-jre</guava.version>
-    <jackson.version>2.16.2</jackson.version>
-    <netty.version>4.1.108.Final</netty.version>
+    <aws-lambda-java-events.version>3.14.0</aws-lambda-java-events.version>
+    <aws-sdk.version>2.29.45</aws-sdk.version>
+    <guava.version>33.4.0-jre</guava.version>
+    <jackson.version>2.18.2</jackson.version>
+    <netty.version>4.1.116.Final</netty.version>
 
     <aws-lambda-java-tests.version>1.1.1</aws-lambda-java-tests.version>
-    <junit.version>5.10.2</junit.version>
-    <mockito-core.version>5.11.0</mockito-core.version>
+    <junit.version>5.11.4</junit.version>
+    <mockito-core.version>5.15.2</mockito-core.version>
   </properties>
 
   <dependencyManagement>
@@ -63,7 +63,7 @@
         <!--
           Resolve convergence error between
             - org.apache.httpcomponents:httpclient:4.5.13
-            - software.amazon.awssdk:apache-client:2.25.34
+            - software.amazon.awssdk:apache-client:2.29.45
          Both are transitive dependencies via the kinesis SDK.
          -->
         <groupId>org.apache.httpcomponents</groupId>
@@ -73,6 +73,11 @@
           <exclusion>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
+          </exclusion>
+
+          <exclusion>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpcore</artifactId>
           </exclusion>
         </exclusions>
       </dependency>
@@ -126,12 +131,12 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.8.1</version>
+        <version>3.13.0</version>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-shade-plugin</artifactId>
-        <version>3.2.4</version>
+        <version>3.6.0</version>
         <configuration>
           <createDependencyReducedPom>false</createDependencyReducedPom>
         </configuration>
@@ -147,7 +152,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>3.0.0-M3</version>
+        <version>3.5.0</version>
         <executions>
           <execution>
             <goals>
@@ -157,7 +162,7 @@
               <rules>
                 <dependencyConvergence/>
                 <requireMavenVersion>
-                  <version>3.8.3</version>
+                  <version>3.9.9</version>
                 </requireMavenVersion>
               </rules>
             </configuration>
@@ -167,7 +172,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.0.0-M5</version>
+        <version>3.5.2</version>
       </plugin>
     </plugins>
   </build>
