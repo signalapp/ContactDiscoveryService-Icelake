@@ -80,7 +80,8 @@ jobs:
           imagename: cdsi-enclave-build
 
       - name: Build and test with Maven
-        run: mvn -f cdsi/pom.xml -e -B verify
+        working-directory: cdsi
+        run: ./mvnw -e -B verify
 
   test-lambda:
     name: Build and test lambda
