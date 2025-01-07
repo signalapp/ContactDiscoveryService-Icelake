@@ -6,6 +6,7 @@ jobs:
   test-c:
     name: Build and test C
     runs-on: ubuntu-20.04
+    timeout-minutes: 20
     permissions:
       packages: read
       contents: read
