@@ -21,11 +21,11 @@ jobs:
           submodules: true
           path: cdsi
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@7a6d8a8234af8eb26422e24e3006232cccaa061b # v4.6.0
         with:
           distribution: 'temurin'
-          java-version: 17
+          java-version: 21
           cache: 'maven'
 
       - name: Docker cache
