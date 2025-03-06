@@ -31,6 +31,7 @@ jobs:
   valgrind-c:
     name: Valgrind C
     runs-on: ubuntu-20.04
+    timeout-minutes: 20
     permissions:
       packages: read
       contents: read
@@ -55,6 +56,7 @@ jobs:
   test-service:
     name: Build and test Java
     runs-on: ubuntu-20.04
+    timeout-minutes: 20
     permissions:
       packages: read
       contents: read
