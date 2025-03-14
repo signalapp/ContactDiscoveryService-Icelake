@@ -7,10 +7,10 @@ RUN apt update && apt install -y gnupg2 wget gpg software-properties-common && \
     wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add - && \
     apt update && \
     apt install -y \
-          libsgx-dcap-ql=1.21.100.3-focal1 \
-          libsgx-dcap-ql-dev=1.21.100.3-focal1 \
-          libsgx-dcap-default-qpl=1.21.100.3-focal1 \
-          libsgx-dcap-default-qpl-dev=1.21.100.3-focal1
+          libsgx-dcap-ql=1.22.100.3-focal1 \
+          libsgx-dcap-ql-dev=1.22.100.3-focal1 \
+          libsgx-dcap-default-qpl=1.22.100.3-focal1 \
+          libsgx-dcap-default-qpl-dev=1.22.100.3-focal1
 
 WORKDIR /home/app
 COPY classes /home/app/classes
