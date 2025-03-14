@@ -281,10 +281,6 @@ typedef struct {
 
 static error_t write_accessor(u64* block_data, void* vargs) {
     write_accessor_args* args = vargs;
-    // Acceptable if: we allow leakage of request type
-    if(args->out_data){
-        memcpy(args->out_data, block_data, BLOCK_DATA_SIZE_QWORDS*sizeof(block_data[0]));
-    }
     CHECK(args->in_data != 0);
     for(size_t i = 0; i < BLOCK_DATA_SIZE_QWORDS; ++i) {
         bool cond = (i >= args->in_data_start) & (i < args->in_data_start + args->in_data_len);
@@ -295,6 +291,11 @@ static error_t write_accessor(u64* block_data, void* vargs) {
         // the needed range and (2) is 0 when i == args->ind_data_start and cond becomes true. This means we don't
         // have a memory violation and we do copy the correct data.
         size_t source_index = (i + args->in_data_len -  (args->in_data_start % args->in_data_len)) % args->in_data_len;
+        
+        // Acceptable if: we allow leakage of request type
+        if(args->out_data) {
+            cond_obv_cpy_u64(cond, args->out_data + source_index, block_data + i);
+        }
         cond_obv_cpy_u64(cond, block_data + i, args->in_data + source_index);
     }
     return err_SUCCESS;
@@ -311,7 +312,7 @@ error_t oram_put(oram *oram, u64 block_id, const u64 data[])
     return err_ORAM__ACCESS_UNALLOCATED_BLOCK;
 }
 
-error_t oram_put_partial(oram *oram, u64 block_id, size_t start, size_t len, u64 data[len], u64 prev_data[static BLOCK_DATA_SIZE_QWORDS])
+error_t oram_put_partial(oram *oram, u64 block_id, size_t start, size_t len, u64 data[len], u64 prev_data[len])
 {
     // Acceptable if: failure is a bug that leaks more than the timing here
     if (block_is_allocated(oram, block_id))
