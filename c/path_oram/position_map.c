@@ -104,16 +104,6 @@ static u64 block_id_for_index(const oram_position_map *oram_position_map, u64 in
     return oram_position_map->base_block_id + offset;
 }
 
-static error_t oram_position_map_get(const oram_position_map *oram_position_map, u64 block_id, u64* position)
-{
-    size_t block_size = oram_block_size(oram_position_map->oram);
-    u64 *buf = oram_position_map->access_buf;
-    RETURN_IF_ERROR(oram_get(oram_position_map->oram, block_id_for_index(oram_position_map, block_id), buf));
-    
-    *position = buf[block_id % block_size];
-    return err_SUCCESS;
-}
-
 static error_t oram_position_map_set(oram_position_map *oram_position_map, u64 block_id, u64 position, u64 *prev_position)
 {
     CHECK(prev_position!= NULL);
@@ -153,18 +143,6 @@ static scan_position_map scan_position_map_create(size_t size, size_t num_positi
 static void scan_position_map_destroy(scan_position_map scan_position_map)
 {
     free(scan_position_map.data);
-}
-
-static error_t scan_position_map_get(const scan_position_map *scan_position_map, u64 block_id, u64* position)
-{  
-    CHECK(block_id < scan_position_map->size);
-    // linear scan of array so that every access looks the same.
-    for (size_t i = 0; i < scan_position_map->size; ++i)
-    {
-        bool cond = (i == block_id);
-        cond_obv_cpy_u64(cond, position, scan_position_map->data + i);
-    }
-    return err_SUCCESS;
 }
 
 static error_t scan_position_map_set(scan_position_map *scan_position_map, u64 block_id, u64 position, u64 *prev_position)
@@ -226,24 +204,6 @@ void position_map_destroy(position_map *position_map)
         }
         free(position_map);
     }
-}
-
-error_t position_map_get(const position_map *position_map, u64 block_id, u64* position)
-{
-    // Acceptable switch: executed identically in each oram_access
-    switch (position_map->type)
-    {
-    case scan_map:
-        RETURN_IF_ERROR(scan_position_map_get(&position_map->impl.scan_position_map, block_id, position));
-        break;
-    case oram_map:
-        RETURN_IF_ERROR(oram_position_map_get(&position_map->impl.oram_position_map, block_id, position));
-        break;
-    default:
-        CHECK(false);
-        break;
-    }
-    return err_SUCCESS;
 }
 
 error_t position_map_read_then_set(position_map *position_map, u64 block_id, u64 position, u64 *prev_position)
@@ -320,7 +280,58 @@ size_t position_map_size_bytes(size_t num_blocks, size_t stash_overflow_size) {
         return oram_size_bytes(num_levels, blocks_needed, stash_overflow_size) + sizeof(position_map);
     }
     
-    return num_blocks * sizeof(u64) + sizeof(position_map);
-    
+    return num_blocks * sizeof(u64) + sizeof(position_map); 
 
 }
+
+#ifdef IS_TEST
+
+
+static error_t oram_position_map_get(const oram_position_map *oram_position_map, u64 block_id, u64* position)
+{
+    size_t idx_in_block = ct_mod(
+        block_id, 
+        oram_position_map->entries_per_block, 
+        oram_position_map->entries_per_block_ct_m_prime, 
+        oram_position_map->entries_per_block_ct_shift1, 
+        oram_position_map->entries_per_block_ct_shift2);
+    size_t len_to_get = 1;
+
+    RETURN_IF_ERROR(oram_get_partial(oram_position_map->oram, block_id_for_index(oram_position_map, block_id), idx_in_block, len_to_get, position));
+    
+    return err_SUCCESS;
+}
+
+
+static error_t scan_position_map_get(const scan_position_map *scan_position_map, u64 block_id, u64* position)
+{  
+    CHECK(block_id < scan_position_map->size);
+    // linear scan of array so that every access looks the same.
+    for (size_t i = 0; i < scan_position_map->size; ++i)
+    {
+        bool cond = (i == block_id);
+        cond_obv_cpy_u64(cond, position, scan_position_map->data + i);
+    }
+    return err_SUCCESS;
+}
+
+
+error_t position_map_get(const position_map *position_map, u64 block_id, u64* position)
+{
+    // Acceptable switch: executed identically in each oram_access
+    switch (position_map->type)
+    {
+    case scan_map:
+        RETURN_IF_ERROR(scan_position_map_get(&position_map->impl.scan_position_map, block_id, position));
+        break;
+    case oram_map:
+        RETURN_IF_ERROR(oram_position_map_get(&position_map->impl.oram_position_map, block_id, position));
+        break;
+    default:
+        CHECK(false);
+        break;
+    }
+    return err_SUCCESS;
+}
+
+#endif // IS_TEST

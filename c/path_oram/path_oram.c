@@ -248,30 +248,6 @@ error_t oram_function_access(oram* oram, u64 block_id, accessor_func accessor, v
     return err_ORAM__ACCESS_UNALLOCATED_BLOCK;
 }
 
-
-typedef struct {
-    u64* out_data;
-} read_accessor_args;
-
-static error_t read_accessor(u64* block_data, void* vargs) {
-    read_accessor_args* args = vargs;
-    CHECK(args->out_data != NULL);
-    memcpy(args->out_data, block_data, BLOCK_DATA_SIZE_QWORDS*sizeof(block_data[0]));
-    return err_SUCCESS;
-}
-
-error_t oram_get(oram *oram, u64 block_id, u64 buf[])
-{
-    // Acceptable if: failure is a bug that leaks more than the timing here
-    if (block_is_allocated(oram, block_id))
-    {
-        read_accessor_args args = {.out_data = buf};
-        return oram_access(oram, block_id, read_accessor, &args);
-    }
-    return err_ORAM__ACCESS_UNALLOCATED_BLOCK;
-}
-
-
 typedef struct {
     size_t in_data_start;
     size_t in_data_len;
@@ -369,6 +345,56 @@ const oram_statistics* oram_report_statistics(oram* oram) {
 #include <sys/random.h>
 #include "util/util.h"
 #include "util/tests.h"
+
+
+typedef struct {
+    u64* out_data;
+    size_t out_data_start;
+    size_t out_data_len;
+} read_accessor_args;
+
+static error_t read_accessor(u64* block_data, void* vargs) {
+    read_accessor_args* args = vargs;
+    CHECK(args->out_data != NULL);
+    for(size_t i = 0; i < BLOCK_DATA_SIZE_QWORDS; ++i) {
+        bool cond = (i >= args->out_data_start) & (i < args->out_data_start + args->out_data_len);
+
+        // We can only access the destination data in the range [args->out_data, args->out_data + args->out_data_len) without
+        // risking a SIGSEGV. We need to provide a valid index for every conditional read that will also
+        // be the correct source index when `cond` is true. The choice of source index here is (1) always in
+        // the needed range and (2) is 0 when i == args->out_data_start and cond becomes true. This means we don't
+        // have a memory violation and we do copy the correct data.
+        size_t source_index = (i + args->out_data_len -  (args->out_data_start % args->out_data_len)) % args->out_data_len;
+        
+        // Acceptable if: we allow leakage of request type
+        cond_obv_cpy_u64(cond, args->out_data + source_index, block_data + i);
+    }
+    return err_SUCCESS;
+}
+
+
+error_t oram_get(oram *oram, u64 block_id, u64 buf[])
+{
+    // Acceptable if: failure is a bug that leaks more than the timing here
+    if (block_is_allocated(oram, block_id))
+    {
+        read_accessor_args args = {.out_data = buf, .out_data_start = 0, .out_data_len = BLOCK_DATA_SIZE_QWORDS};
+        return oram_access(oram, block_id, read_accessor, &args);
+    }
+    return err_ORAM__ACCESS_UNALLOCATED_BLOCK;
+}
+
+
+error_t oram_get_partial(oram *oram, u64 block_id, size_t start, size_t len, u64 data[len])
+{
+    // Acceptable if: failure is a bug that leaks more than the timing here
+    if (block_is_allocated(oram, block_id))
+    {
+        read_accessor_args args = {.out_data = data, .out_data_start = start, .out_data_len = len};
+        return oram_access(oram, block_id, read_accessor, &args);
+    }
+    return err_ORAM__ACCESS_UNALLOCATED_BLOCK;
+}
 
 void print_oram(const oram *oram)
 {

@@ -67,14 +67,6 @@ size_t oram_block_size(const oram *);
  */
 size_t oram_capacity_blocks(const oram *oram);
 
-/**
- * @brief Read a block of data from an ORAM.
- *
- * @param block_id is the id of the block to retrieve.
- * @param buf buffer of length `oram_block_size(oram*)` where result will be written.
- * @return 0 if successful
- */
-error_t oram_get(oram *, u64 block_id, u64 buf[]);
 
 /**
  * @brief Put a block of data into an ORAM.
@@ -86,7 +78,7 @@ error_t oram_get(oram *, u64 block_id, u64 buf[]);
 error_t oram_put(oram *, u64 block_id, const u64 data[]);
 
 /**
- * @brief Overwrite part of an ORAM block without reading it first. This function is
+ * @brief Overwrite part of an ORAM block and return previous value. This function is
  * not strictly necessary since a client can read a block, change part of it, then call
  * `oram_put` to store it. It is, however, an important optimization - especially for
  * `position_map` implementations where it allows us to reduce 2 ORAM calls to 1.
@@ -95,7 +87,7 @@ error_t oram_put(oram *, u64 block_id, const u64 data[]);
  * @param start offset in the block where writing should start.
  * @param len number of u64s to write.
  * @param data data to write.
- * @param prev_data a buffer of length `block_size` to hold the data in the block before the put. May be 0.
+ * @param prev_data a buffer of length `len` to hold the data in the block before the put. May be 0.
  * @return 0 if successful
  */
 error_t oram_put_partial(oram *, u64 block_id, size_t start, size_t len, u64 data[len], u64 *prev_data);
@@ -150,6 +142,26 @@ size_t oram_max_stash_size(const oram* oram);
 size_t oram_size_bytes(size_t num_levels, size_t num_blocks, size_t stash_overflow_size);
 
 #ifdef IS_TEST
+
+/**
+ * @brief Read a block of data from an ORAM.
+ *
+ * @param block_id is the id of the block to retrieve.
+ * @param buf buffer of length `oram_block_size(oram*)` where result will be written.
+ * @return 0 if successful
+ */
+error_t oram_get(oram *, u64 block_id, u64 buf[]);
+
+/**
+ * @brief Obliviously read a part of an ORAM block.
+ *
+ * @param block_id is the id of the block to retrieve.
+ * @param start offset in the block where reading should start.
+ * @param len number of u64s to read.
+ * @param data buffer where output data bill be written.
+ * @return 0 if successful
+ */
+error_t oram_get_partial(oram *oram, u64 block_id, size_t start, size_t len, u64 data[len]);
 
 void print_oram(const oram *oram);
 void report_level_stats(oram *oram);

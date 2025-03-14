@@ -26,17 +26,6 @@ void position_map_destroy(position_map *position_map);
 size_t position_map_capacity(const position_map *position_map);
 
 /**
- * @brief Get the position of a block
- *
- * @param position_map
- * @param block_id
- * @param position the result will be written here
- * @return err_SUCCESS if successful
- * @return err_ORAM__ if ORAM operation failed
- */
-error_t position_map_get(const position_map *position_map, u64 block_id, u64* position);
-
-/**
  * @brief Sets the position of a block and returns the previous position
  *
  * @param position_map
@@ -68,5 +57,17 @@ size_t position_map_size_bytes(size_t num_blocks, size_t stash_overflow_size);
 
 #ifdef IS_TEST
 int private_position_map_tests();
+
+/**
+ * @brief Get the position of a block
+ *
+ * @param position_map
+ * @param block_id
+ * @param position the result will be written here
+ * @return err_SUCCESS if successful
+ * @return err_ORAM__ if ORAM operation failed
+ */
+error_t position_map_get(const position_map *position_map, u64 block_id, u64* position);
+
 #endif // IS_TEST
 #endif // CDS_PATH_ORAM_POSITION_MAP_H
