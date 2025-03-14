@@ -270,10 +270,10 @@ clean:
 
 docker_%:
 	mkdir -pv "$(RESOURCES_DIR)"
-	docker build -t cdsi-enclave-build ./docker
+	docker buildx build -t cdsi-enclave-build ./docker
 	docker run --rm -v "$(CURDIR)":/src -v "$(CURDIR)/../src/main":/src/main -v "$(RESOURCES_DIR)":/resources --user "$$(id -u):$$(id -g)" cdsi-enclave-build make ENCLAVE_ID=$(ENCLAVE_ID) CONFIG=$(CONFIG) INSTALL_DIR=/resources AFL_FLAGS="$(AFL_FLAGS)" ADDITIONAL_CFLAGS="$(ADDITIONAL_CFLAGS)" $*
 
 dockersh:
 	mkdir -pv "$(RESOURCES_DIR)"
-	docker build -t cdsi-enclave-build ./docker
+	docker buildx build -t cdsi-enclave-build ./docker
 	docker run --rm -it -v "$(CURDIR)":/src -v "$(CURDIR)/../src/main":/src/main -v "$(RESOURCES_DIR)":/resources --user "$$(id -u):$$(id -g)" cdsi-enclave-build 

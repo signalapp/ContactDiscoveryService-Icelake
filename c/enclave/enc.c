@@ -171,7 +171,13 @@ int enclave_init(size_t available_memory, double load_factor, size_t num_shards,
   // oe_attester_initialize() is basic, and it will succeed as long as one attester plugin loads.
   // We want to fail fast if the format that we use is not available, so we check that it is.
   oe_uuid_t ignored;
-  ASSERT_ERR(OE_OK == oe_attester_select_format(&sgx_remote_uuid, 1, &ignored), err_ENCLAVE__GENERAL__OE_ATTESTER_SELECT_FORMAT);
+  if (OE_OK != oe_attester_select_format(&sgx_remote_uuid, 1, &ignored)) {
+#ifdef INSECURE
+    ENC_LOG_ERROR("Unable to oe_attester_select_format, but INSECURE so continuing");
+#else
+    return err_ENCLAVE__GENERAL__OE_ATTESTER_SELECT_FORMAT;
+#endif
+  }
   uint8_t init_expected = ENCLAVE_INIT_UNINITIALIZED;
   ASSERT_ERR(__atomic_compare_exchange_n(&g_init_done, &init_expected, ENCLAVE_INIT_INITIALIZING, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQ_REL), err_ENCLAVE__GENERAL__REINIT);
   GOTO_IF_ERROR(err = generate_privkey(sizeof(g_privkey), g_privkey), done);
