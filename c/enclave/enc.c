@@ -387,12 +387,12 @@ int enclave_new_client(
   RETURN_IF_ERROR(check_init_complete());
   client_t *c;
   RETURN_IF_ERROR(MALLOCZ(c));
-  TEST_LOG("noise_handshakestate_new_by_name '%s'", NOISE_PROTOCOL_DEFINITION);
+  TEST_LOG("noise_handshakestate_new_by_id");
   error_t err = err_SUCCESS;
   GOTO_IF_ERROR(err = noise_errort(
       err_NOISE__HANDSHAKESTATE__NEW__,
-      noise_handshakestate_new_by_name(
-          &c->handshake, NOISE_PROTOCOL_DEFINITION, NOISE_ROLE_RESPONDER)),
+      noise_handshakestate_new_by_id(
+          &c->handshake, &cdsi_client_protocol_id, NOISE_ROLE_RESPONDER)),
       free_client);
   NoiseDHState *local_keypair = noise_handshakestate_get_local_keypair_dh(c->handshake);
 
@@ -837,7 +837,7 @@ int enclave_handshake(
   GOTO_IF_ERROR(err = noise_errort(err_NOISE__HANDSHAKESTATE__READ__, noise_handshakestate_read_message(c->handshake, &buf_in, NULL)), client_unlock);
 
   // Generate the handshake response.
-  unsigned char handshake_msg[64];
+  unsigned char handshake_msg[NOISE_HANDSHAKEWRITE_SIZE];
   NoiseBuffer buf_out;
   noise_buffer_set_output(buf_out, handshake_msg, sizeof(handshake_msg));
   TEST_LOG("noise_handshakestate_write_message");

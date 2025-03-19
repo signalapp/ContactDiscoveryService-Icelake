@@ -24,10 +24,13 @@
 static void test_noise_message_encrypt_decrypt() {
   NoiseHandshakeState* ah;
   NoiseHandshakeState* bh;
-  NOISE_ASSERT(noise_handshakestate_new_by_name(
-      &ah, "Noise_NN_25519_ChaChaPoly_SHA256", NOISE_ROLE_INITIATOR));
-  NOISE_ASSERT(noise_handshakestate_new_by_name(
-      &bh, "Noise_NN_25519_ChaChaPoly_SHA256", NOISE_ROLE_RESPONDER));
+  NoiseProtocolId id;
+  memcpy(&id, &cdsi_client_protocol_id, sizeof(id));
+  id.pattern_id = NOISE_PATTERN_NN_HFS;
+  NOISE_ASSERT(noise_handshakestate_new_by_id(
+      &ah, &id, NOISE_ROLE_INITIATOR));
+  NOISE_ASSERT(noise_handshakestate_new_by_id(
+      &bh, &id, NOISE_ROLE_RESPONDER));
   NOISE_ASSERT(noise_handshakestate_start(ah));
   NOISE_ASSERT(noise_handshakestate_start(bh));
 
@@ -36,7 +39,6 @@ static void test_noise_message_encrypt_decrypt() {
   NoiseCipherState* brx;
   NoiseCipherState* btx;
   uint8_t* bufbuf = calloc(1, BUFSIZE);
-
   NoiseBuffer buf;
   noise_buffer_set_output(buf, bufbuf, BUFSIZE);
   NOISE_ASSERT(noise_handshakestate_write_message(ah, &buf, NULL));
@@ -70,5 +72,6 @@ static void test_noise_message_encrypt_decrypt() {
 }
 
 int main(int argc, char** argv) {
+  printf("Running\n");
   test_noise_message_encrypt_decrypt();
 }

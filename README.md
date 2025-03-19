@@ -13,7 +13,8 @@ Building
 
 ```
 git submodule init
-git submodule update
+git submodule update --recursive --init || true
+git submodule update --recursive || true
 mvn verify
 ```
 

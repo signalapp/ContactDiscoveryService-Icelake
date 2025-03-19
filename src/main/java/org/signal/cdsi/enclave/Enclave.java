@@ -335,7 +335,8 @@ public class Enclave implements AutoCloseable {
   }
 
   CompletableFuture<ByteBuffer> clientHandshake(final EnclaveClient client, final ByteBuffer in) {
-    final ByteBuffer out = ByteBuffer.allocateDirect(1024);
+    // see noise.h: NOISE_HANDSHAKEWRITE_SIZE
+    final ByteBuffer out = ByteBuffer.allocateDirect(1632);
 
     return supplyAsync(HANDSHAKE_TIMER_NAME, () -> {
       try {

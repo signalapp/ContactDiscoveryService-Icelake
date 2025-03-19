@@ -418,7 +418,9 @@
             </goals>
             <configuration>
               <executable>make</executable>
-              <commandlineArgs>ENCLAVE_ID=test CONFIG=cds-test.conf RESOURCES_DIR=${project.build.testOutputDirectory}/org/signal/cdsi/enclave ADDITIONAL_CFLAGS="-DINSECURE" -C c ${make.docker.prefix}install</commandlineArgs>
+              <!-- Our Java-side Noise client library doesn't support HFS+Kyber1024,
+                   so we have to pass in -DNO_NOISE_HFS.  -->
+              <commandlineArgs>ENCLAVE_ID=test CONFIG=cds-test.conf RESOURCES_DIR=${project.build.testOutputDirectory}/org/signal/cdsi/enclave ADDITIONAL_CFLAGS="-DINSECURE -DNO_NOISE_HFS" -C c ${make.docker.prefix}install</commandlineArgs>
             </configuration>
           </execution>
         </executions>

@@ -4,17 +4,16 @@
 #define _CDSI_NOISE_H
 
 #include <noise/protocol.h>
-#define NOISE_PROTOCOL_TYPE "NK"
-#define NOISE_DH_TYPE "25519"
-#define NOISE_TYPE_SUFFIX NOISE_DH_TYPE "_ChaChaPoly_SHA256"
-#define NOISE_PROTOCOL_DEFINITION "Noise_" NOISE_PROTOCOL_TYPE "_" NOISE_TYPE_SUFFIX
 #define NOISE_MAX_OVERHEAD 64
 #define NOISE_KEY_SIZE 32
 #define NOISE_MAX_PACKET_SIZE NOISE_MAX_PAYLOAD_LEN
 #define NOISE_MAC_SIZE 16
 #define NOISE_MAX_DATA_SIZE (NOISE_MAX_PACKET_SIZE - NOISE_MAC_SIZE)
+#define NOISE_HANDSHAKEWRITE_SIZE 1632
 
 #include "util/util.h"
+
+extern const NoiseProtocolId cdsi_client_protocol_id;
 
 #define NOISE_ERROR_BASE NOISE_ID('E', 0)
 error_t noise_errort(error_t space, int noise_error);

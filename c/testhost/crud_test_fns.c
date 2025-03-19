@@ -169,7 +169,7 @@ int call_ratelimit(enclave_client_state *ecs, client_request req)
     int noise_err = noise_cipherstate_decrypt(ecs->recv, &buf_out);
     if (NOISE_ERROR_NONE != noise_err)
     {
-        noise_perror(NOISE_PROTOCOL_DEFINITION, noise_err);
+        noise_perror("noise_cipherstate_decrypt", noise_err);
         err = err_HOST__RATELIMIT__DECRYPT;
     }
 
@@ -264,7 +264,7 @@ int run(enclave_client_state *ecs, size_t num_triples, e164_pni_aci_triple *trip
     int noise_err = noise_cipherstate_decrypt(ecs->recv, &buf_out);
     if (NOISE_ERROR_NONE != noise_err)
     {
-        noise_perror(NOISE_PROTOCOL_DEFINITION, noise_err);
+        noise_perror("noise_cipherstate_decrypt", noise_err);
         return err_HOST__RUN__DECRYPT;
     }
 

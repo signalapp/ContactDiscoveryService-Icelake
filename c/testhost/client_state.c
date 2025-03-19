@@ -110,7 +110,7 @@ exit:
 int perform_handshake(enclave_client_state *ecs, bool simulate, uint8_t pubkey[NOISE_KEY_SIZE])
 {
     int err, retval, result;
-    RETURN_IF_ERROR(noise_errort(err_NOISE__HANDSHAKESTATE__NEW__, noise_handshakestate_new_by_name(&ecs->handshake, NOISE_PROTOCOL_DEFINITION, NOISE_ROLE_INITIATOR)));
+    RETURN_IF_ERROR(noise_errort(err_NOISE__HANDSHAKESTATE__NEW__, noise_handshakestate_new_by_id(&ecs->handshake, &cdsi_client_protocol_id, NOISE_ROLE_INITIATOR)));
     NoiseDHState *dhstate = noise_handshakestate_get_remote_public_key_dh(ecs->handshake);
     RETURN_IF_ERROR(noise_errort(err_NOISE__DHSTATE__SET_PUBLIC_KEY__, noise_dhstate_set_public_key(dhstate, pubkey, NOISE_KEY_SIZE)));
     RETURN_IF_ERROR(noise_errort(err_NOISE__HANDSHAKESTATE__START__, noise_handshakestate_start(ecs->handshake)));
@@ -120,12 +120,12 @@ int perform_handshake(enclave_client_state *ecs, bool simulate, uint8_t pubkey[N
         return err_HOST__HANDSHAKE__INVALID_STATE;
     }
     NoiseBuffer mbuf;
-    uint8_t message[64];
+    uint8_t message[4096];
     noise_buffer_set_output(mbuf, message, sizeof(message));
     RETURN_IF_ERROR(noise_errort(err_NOISE__HANDSHAKESTATE__WRITE__, noise_handshakestate_write_message(ecs->handshake, &mbuf, NULL)));
 
     size_t in_size = mbuf.size;
-    CHECK(in_size == 48);
+    CHECK(in_size == NOISE_HANDSHAKEWRITE_SIZE);
     uint8_t *in = message;
     uint8_t out[8192];
     size_t actual_out_size = 0;

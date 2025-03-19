@@ -42,15 +42,33 @@ proto: cdsi.h cdsi.c
 
 enclave: proto
 
-libnoise.a:
+LIBSODIUM_UNDEFS = \
+  -UHAVE_MMAP \
+  -UHAVE_MLOCK \
+  -UHAVE_MADVISE \
+  -UHAVE_MPROTECT \
+  -UHAVE_RAISE \
+##LIBSODIUM_UNDEFS
+
+libsodium.a:
+	rm -rf $$(pwd)/libsodium/.build && mkdir -p $$(pwd)/libsodium/.build
+	(cd libsodium && (git clean -fxd || true) && ./configure \
+  CFLAGS="$(TRUSTED_CFLAGS) $(LIBSODIUM_UNDEFS)" \
+  CXXFLAGS="$(TRUSTED_CXXFLAGS) $(LIBSODIUM_UNDEFS)" \
+  CC=$(CC) CXX=$(CXX) --prefix=$$(pwd)/.build && $(MAKE) clean && $(MAKE) install)
+	cp -fv $$(pwd)/libsodium/.build/lib/libsodium.a $@
+
+libnoise.a: libsodium.a
 	mkdir -p $$(dirname $@)
 	# Noise depends on the "immintrin" header which is not found in the pared-down
 	# version of libc we use, and which it could otherwise not find with -nostdinc.
 	(cd noise-c && \
+	 (git clean -fxd ; git submodule foreach --recursive git clean -xfd ; true) && \
 	 ./autogen.sh && \
+   libsodium_CFLAGS=-I$$(pwd)/.libsodium/include/ libsodium_LIBS=libsodium.a \
 	 CC=$(TRUSTED_CC) CFLAGS="$(TRUSTED_CFLAGS) -I$(shell ./find_header.sh $(CC) immintrin.h)" ./configure && \
 	 $(MAKE) -j)
-	cp -v noise-c/src/protocol/libnoiseprotocol.a libnoise.a
+	cp -vf noise-c/src/protocol/libnoiseprotocol.a libnoise.a
 
 libsip.a: SipHash/halfsiphash.c
 	$(TRUSTED_CC) $(TRUSTED_CFLAGS) -o SipHash/halfsiphash.o -c SipHash/halfsiphash.c
@@ -226,6 +244,7 @@ TESTS=\
 
 
 tests: $(patsubst %,%.out,$(TESTS)) enclave.test.out constant_time_check.test
+	@echo ALL TESTS SUCCEEDED
 valgrinds: $(patsubst %,%.valgrind,$(TESTS))
 
 public.pem:
@@ -261,11 +280,12 @@ clean:
       enclave.test.out \
       proto/cdsi.c \
       proto/cdsi.h \
+      libsodium/.build \
       ##
 	for dir in $(SUBDIRS); do make -C $$dir -f ../Makefile.subdirs clean; done
 	(cd noise-c && \
 	 ($(MAKE) clean || true) && \
-	 (git clean -fx || true)) >/dev/null
+	 (git clean -fx ; git submodule foreach --recursive git clean -xfd  ; true)) >/dev/null
 	@echo CLEAN
 
 docker_%:

@@ -4,6 +4,23 @@
 #include <noise/protocol/constants.h>
 #include <string.h>
 
+const NoiseProtocolId cdsi_client_protocol_id = {
+    .prefix_id = NOISE_PREFIX_STANDARD,
+#ifdef NO_NOISE_HFS
+    .pattern_id = NOISE_PATTERN_NK,
+#else
+    .pattern_id = NOISE_PATTERN_NK_HFS,
+#endif
+    .dh_id = NOISE_DH_CURVE25519,
+    .cipher_id = NOISE_CIPHER_CHACHAPOLY,
+    .hash_id = NOISE_HASH_SHA256,
+#ifdef NO_NOISE_HFS
+    .hybrid_id = 0,
+#else
+    .hybrid_id = NOISE_DH_KYBER1024,
+#endif
+};
+
 error_t noise_encrypt_message(
     NoiseCipherState* tx,
     const unsigned char* plaintext_data,
@@ -76,7 +93,7 @@ error_t noise_pubkey_from_privkey(
     unsigned char pubkey[NOISE_KEY_SIZE]) {
   NoiseDHState* state;
   error_t err = err_SUCCESS;
-  RETURN_IF_ERROR(noise_errort(err_NOISE__DHSTATE__NEW__, noise_dhstate_new_by_name(&state, NOISE_DH_TYPE)));
+  RETURN_IF_ERROR(noise_errort(err_NOISE__DHSTATE__NEW__, noise_dhstate_new_by_id(&state, cdsi_client_protocol_id.dh_id)));
   GOTO_IF_ERROR(err = noise_errort(err_NOISE__DHSTATE__SET_KEYPAIR_PRIVATE__, noise_dhstate_set_keypair_private(state, privkey, NOISE_KEY_SIZE)), free_state);
   GOTO_IF_ERROR(err = noise_errort(err_NOISE__DHSTATE__GET_PUBLIC_KEY__, noise_dhstate_get_public_key(state, pubkey, NOISE_KEY_SIZE)), free_state);
 
