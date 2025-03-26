@@ -55,7 +55,7 @@ libsodium.a:
 	(cd libsodium && (git clean -fxd || true) && ./configure \
   CFLAGS="$(TRUSTED_CFLAGS) $(LIBSODIUM_UNDEFS)" \
   CXXFLAGS="$(TRUSTED_CXXFLAGS) $(LIBSODIUM_UNDEFS)" \
-  CC=$(CC) CXX=$(CXX) --prefix=$$(pwd)/.build && $(MAKE) clean && $(MAKE) install)
+  CC=$(CC) CXX=$(CXX) --prefix=$$(pwd)/.build && $(MAKE) clean && $(MAKE) -j install)
 	cp -fv $$(pwd)/libsodium/.build/lib/libsodium.a $@
 
 libnoise.a: libsodium.a
@@ -167,7 +167,6 @@ fuzz: fuzz.bin
 UNTRUSTED_OE_LIBS=\
 	/opt/openenclave/lib/openenclave/host/liboehost.a \
 	/usr/lib/x86_64-linux-gnu/libcrypto.so \
-	/usr/lib/x86_64-linux-gnu/libdl.so \
 ##UNTRUSTED_OE_LIBS
 
 libjnishim.so: \
@@ -290,10 +289,10 @@ clean:
 
 docker_%:
 	mkdir -pv "$(RESOURCES_DIR)"
-	docker buildx build -t cdsi-enclave-build ./docker
+	docker buildx build -t cdsi-enclave-build ./docker --load
 	docker run --rm -v "$(CURDIR)":/src -v "$(CURDIR)/../src/main":/src/main -v "$(RESOURCES_DIR)":/resources --user "$$(id -u):$$(id -g)" cdsi-enclave-build make ENCLAVE_ID=$(ENCLAVE_ID) CONFIG=$(CONFIG) INSTALL_DIR=/resources AFL_FLAGS="$(AFL_FLAGS)" ADDITIONAL_CFLAGS="$(ADDITIONAL_CFLAGS)" $*
 
 dockersh:
 	mkdir -pv "$(RESOURCES_DIR)"
-	docker buildx build -t cdsi-enclave-build ./docker
+	docker buildx build -t cdsi-enclave-build ./docker --load
 	docker run --rm -it -v "$(CURDIR)":/src -v "$(CURDIR)/../src/main":/src/main -v "$(RESOURCES_DIR)":/resources --user "$$(id -u):$$(id -g)" cdsi-enclave-build 

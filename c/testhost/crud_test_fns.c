@@ -66,7 +66,6 @@ uint8_t *create_ack_request(int *result_size)
     struct org_signal_cdsi_client_request_t *req = org_signal_cdsi_client_request_new(workspace, sizeof(workspace));
     if (req == 0)
     {
-        free(workspace);
         return 0;
     }
     req->token_ack = true;
@@ -394,7 +393,6 @@ int test_data_load(oe_enclave_t *enclave, size_t num_records, size_t num_sample_
     printf("sample_stride: %zu\n", sample_stride);
     // clock_t start = clock();
     struct timespec begin, finish;
-    double elapsed;
     clock_gettime(CLOCK_MONOTONIC, &begin);
     clock_t start_clock = clock();
     for (size_t block = 0; block < num_blocks; ++block)
@@ -453,9 +451,6 @@ int test_data_load(oe_enclave_t *enclave, size_t num_records, size_t num_sample_
 
     clock_gettime(CLOCK_MONOTONIC, &finish);
     clock_t end_clock = clock();
-
-    elapsed = (finish.tv_sec - begin.tv_sec);
-    elapsed += (finish.tv_nsec - begin.tv_nsec) / 1000000000.0;
 
     printf("DATA LOAD PERFORMANCE\n--------------------------\n");
     report_performance(num_records_to_add, start_clock, end_clock, begin, finish);

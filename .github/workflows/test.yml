@@ -5,7 +5,7 @@ on: [push]
 jobs:
   test-c:
     name: Build and test C
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
       packages: read
@@ -30,7 +30,7 @@ jobs:
 
   valgrind-c:
     name: Valgrind C
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
       packages: read
@@ -55,7 +55,7 @@ jobs:
 
   test-service:
     name: Build and test Java
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
       packages: read
@@ -77,16 +77,16 @@ jobs:
 
       - name: Set up necessary SGX stuff
         run: |
-            echo "deb [arch=amd64] https://packages.microsoft.com/ubuntu/20.04/prod focal main" | sudo tee /etc/apt/sources.list.d/msprod.list
+            echo "deb [arch=amd64] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" | sudo tee /etc/apt/sources.list.d/msprod.list
             wget -qO - https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-            echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu focal main' | sudo tee /etc/apt/sources.list.d/intel-sgx.list
+            echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' | sudo tee /etc/apt/sources.list.d/intel-sgx.list
             wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | sudo apt-key add -
             sudo apt update
             sudo apt install -y \
-                  libsgx-dcap-ql=1.21.100.3-focal1 \
-                  libsgx-dcap-ql-dev=1.21.100.3-focal1 \
-                  libsgx-dcap-default-qpl=1.21.100.3-focal1 \
-                  libsgx-dcap-default-qpl-dev=1.21.100.3-focal1
+                  libsgx-dcap-ql=1.21.100.3-jammy1 \
+                  libsgx-dcap-ql-dev=1.21.100.3-jammy1 \
+                  libsgx-dcap-default-qpl=1.21.100.3-jammy1 \
+                  libsgx-dcap-default-qpl-dev=1.21.100.3-jammy1
 
       - name: Docker cache
         uses: ./cdsi/.github/workflows/dockercache
@@ -100,7 +100,7 @@ jobs:
 
   test-lambda:
     name: Build and test lambda
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout main project

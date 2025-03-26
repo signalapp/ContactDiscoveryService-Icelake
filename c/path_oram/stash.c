@@ -235,7 +235,9 @@ static void stash_assign_block_to_bucket(stash* stash, const tree_path* path, bl
     for(u64 level = 0; level < max_level; ++level) {
         u64 bucket_occupancy = stash->bucket_occupancy[level];
         u64 bucket_id = path->values[level];
-        bool is_valid = tree_path_lower_bound(bucket_id) <= block->position & tree_path_upper_bound(bucket_id) >= block->position;
+        bool lower_bound = tree_path_lower_bound(bucket_id) <= block->position;
+        bool upper_bound = tree_path_upper_bound(bucket_id) >= block->position;
+        bool is_valid = lower_bound & upper_bound;
         bool bucket_has_room = bucket_occupancy < BLOCKS_PER_BUCKET;    
         bool cond = is_valid & bucket_has_room & !is_assigned & block->id != EMPTY_BLOCK_ID;
 
