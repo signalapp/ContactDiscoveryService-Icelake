@@ -2,14 +2,20 @@ name: Service CI
 
 on: [push]
 
+env:
+  DOCKER_BUILD_ARGS: --cache-from type=gha --cache-to type=gha
+  DOCKER_BUILDKIT: 1
+  BUILDX_CONTAINER: container
+
 jobs:
-  test-c:
-    name: Build and test C
+  test:
+    name: Build and test
     runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
       packages: read
       contents: read
+      id-token: write
 
     steps:
       - name: Checkout main project
@@ -18,55 +24,23 @@ jobs:
           submodules: recursive
           path: cdsi
 
-      - name: Docker cache
-        uses: ./cdsi/.github/workflows/dockercache
-        with:
-          dockerdir: cdsi/c/docker
-          imagename: cdsi-enclave-build
+      - name: Expose Docker environmental variables for gha cache
+        # This action takes in the ID tokens etc provided by the permissions,
+        # as well as some environmental data, and exposes them to future steps
+        # in the correct locations and formats for their use with the `gha`
+        # GitHub Actions cache for Docker.
+        uses: crazy-max/ghaction-github-runtime@b3a9207c0e1ef41f4cf215303c976869d0c2c1c4 # v3.0.0
+
+      - name: Setup Docker
+        run: docker buildx create --use --name container --driver docker-container
 
       - name: Build and test C
         working-directory: cdsi/c
         run: make docker_all docker_tests
 
-  valgrind-c:
-    name: Valgrind C
-    runs-on: ubuntu-22.04
-    timeout-minutes: 20
-    permissions:
-      packages: read
-      contents: read
-
-    steps:
-      - name: Checkout main project
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          submodules: recursive
-          path: cdsi
-
-      - name: Docker cache
-        uses: ./cdsi/.github/workflows/dockercache
-        with:
-          dockerdir: cdsi/c/docker
-          imagename: cdsi-enclave-build
-
       - name: Valgrind tests
         working-directory: cdsi/c
         run: make docker_valgrinds
-
-  test-service:
-    name: Build and test Java
-    runs-on: ubuntu-22.04
-    timeout-minutes: 20
-    permissions:
-      packages: read
-      contents: read
-
-    steps:
-      - name: Checkout main project
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          submodules: recursive
-          path: cdsi
 
       - name: Set up JDK 21
         uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
@@ -88,32 +62,10 @@ jobs:
                   libsgx-dcap-default-qpl=1.21.100.3-jammy1 \
                   libsgx-dcap-default-qpl-dev=1.21.100.3-jammy1
 
-      - name: Docker cache
-        uses: ./cdsi/.github/workflows/dockercache
-        with:
-          dockerdir: cdsi/c/docker
-          imagename: cdsi-enclave-build
-
       - name: Build and test with Maven
         working-directory: cdsi
         run: ./mvnw -e -B verify
 
-  test-lambda:
-    name: Build and test lambda
-    runs-on: ubuntu-22.04
-
-    steps:
-      - name: Checkout main project
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          submodules: recursive
-          path: cdsi
-      - name: Set up JDK 21
-        uses: actions/setup-java@3a4f6e1af504cf6a31855fa899c6aa5355ba6c12 # v4.7.0
-        with:
-          distribution: 'temurin'
-          java-version: 21
-          cache: 'maven'
       - name: Build and test with Maven
         working-directory: cdsi/filter-cds-updates
         run: ../mvnw -e -B verify
