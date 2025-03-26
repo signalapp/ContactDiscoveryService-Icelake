@@ -1,4 +1,4 @@
-FROM eclipse-temurin:17-jre-jammy@sha256:853eb47bfb0fc6c340ab9b073144b23bccc7f2497ecbbf482a6400c963fe605f
+FROM eclipse-temurin:21-jre-jammy@sha256:02fc89fa8766a9ba221e69225f8d1c10bb91885ddbd3c112448e23488ba40ab6
 
 RUN apt update && apt install -y gnupg2 wget gpg software-properties-common && \
     echo "deb [arch=amd64] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" | tee /etc/apt/sources.list.d/msprod.list && \
