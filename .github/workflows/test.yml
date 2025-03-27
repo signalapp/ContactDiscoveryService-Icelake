@@ -66,6 +66,6 @@ jobs:
         working-directory: cdsi
         run: ./mvnw -e -B verify
 
-      - name: Build and test with Maven
+      - name: Build and test lambda with Maven
         working-directory: cdsi/filter-cds-updates
         run: ../mvnw -e -B verify

@@ -61,13 +61,13 @@ void* shard_thread_fn(void *input) {
     JavaVM *jvm = ((struct thread_fn_args *)input)->jvm;
     JNIEnv *env;
 
-    cdsi_enclave->running_shard_threads++;
+    atomic_fetch_add(&cdsi_enclave->running_shard_threads, 1);
 
     TEST_LOG("shard_thread_fn(%p, %lu) before call enclave", oe_enclave, shard_id);
     oe_result_t result = enclave_run_shard(oe_enclave, &retval, shard_id);
     LOG_WARN("Returned from enclave_run_shard on shard %zu with oe_result %d", shard_id, result);
 
-    cdsi_enclave->running_shard_threads--;
+    atomic_fetch_add(&cdsi_enclave->running_shard_threads, -1);
 
     return 0;
 }
@@ -500,5 +500,5 @@ JNIEXPORT void JNICALL Java_org_signal_cdsi_enclave_Enclave_nativeEnclaveTableSt
 JNIEXPORT jint JNICALL Java_org_signal_cdsi_enclave_Enclave_nativeGetRunningShardThreadCount
   (JNIEnv *env, jclass c, jlong enc) {
 
-  return ((cdsi_enclave_t*)enc)->running_shard_threads;
+  return atomic_load(&((cdsi_enclave_t*)enc)->running_shard_threads);
 }
