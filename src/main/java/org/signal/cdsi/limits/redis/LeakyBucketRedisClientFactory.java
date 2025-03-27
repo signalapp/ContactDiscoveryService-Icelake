@@ -7,6 +7,7 @@ package org.signal.cdsi.limits.redis;
 
 import io.lettuce.core.ClientOptions.DisconnectedBehavior;
 import io.lettuce.core.RedisURI;
+import io.lettuce.core.RedisURI.Builder;
 import io.lettuce.core.TimeoutOptions;
 import io.lettuce.core.cluster.ClusterClientOptions;
 import io.lettuce.core.cluster.ClusterTopologyRefreshOptions;
@@ -25,11 +26,12 @@ import java.net.URI;
 import java.time.Duration;
 import java.util.List;
 
-@Requires(property = LeakyBucketRedisClientFactory.URLS)
+@Requires(property = LeakyBucketRedisClientFactory.HOST)
 @Factory
 class LeakyBucketRedisClientFactory {
 
-  static final String URLS = "redis-leaky-bucket.urls";
+  static final String HOST = "redis-leaky-bucket.host";
+  static final String PASSWORD = "redis-leaky-bucket.password";
   private static final String CLIENT_NAME = "redisLeakyBucketClient";
   public static final String CONNECTION_NAME = "redisLeakyBucketConnection";
 
@@ -43,17 +45,24 @@ class LeakyBucketRedisClientFactory {
   @Named(CLIENT_NAME)
   @Bean(preDestroy = "shutdown")
   @Singleton
-  RedisClusterClient redisClusterClient(@Property(name = URLS) final List<URI> uris) {
-    if (uris.isEmpty()) {
-      throw new IllegalArgumentException("Redis URLs most not be empty");
+  RedisClusterClient redisClusterClient(
+      @Property(name = HOST) final String host,
+      @Property(name = PASSWORD) final String password) {
+    if (host.isBlank()) {
+      throw new IllegalArgumentException("redis host must be specified");
     }
-    final List<RedisURI> redisURIs = uris.stream().map(RedisURI::create).toList();
+
+    final Builder redisUriBuilder = RedisURI.builder().withHost(host);
+    if (password != null && !password.isBlank()) {
+      redisUriBuilder.withPassword(password);
+    }
+    final RedisURI redisUri = redisUriBuilder.build();
 
     final MicrometerOptions options = MicrometerOptions.builder()
         .histogram(true).build();
     final ClientResources clientResources = DefaultClientResources.builder().build();
 
-    final RedisClusterClient redisClusterClient = RedisClusterClient.create(clientResources, redisURIs);
+    final RedisClusterClient redisClusterClient = RedisClusterClient.create(clientResources, redisUri);
 
     redisClusterClient.setOptions(ClusterClientOptions.builder()
         .timeoutOptions(TimeoutOptions.builder()
