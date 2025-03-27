@@ -25,7 +25,6 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: recursive
-          path: cdsi
 
       - name: Expose Docker environmental variables for gha cache
         # This action takes in the ID tokens etc provided by the permissions,
@@ -56,20 +55,9 @@ jobs:
           az acr login --name ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}
 
       - name: Set up necessary SGX stuff
-        run: |
-            echo "deb [arch=amd64] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" | sudo tee /etc/apt/sources.list.d/msprod.list
-            wget -qO - https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-            echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' | sudo tee /etc/apt/sources.list.d/intel-sgx.list
-            wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | sudo apt-key add -
-            sudo apt update
-            sudo apt install -y \
-                  libsgx-dcap-ql=1.21.100.3-jammy1 \
-                  libsgx-dcap-ql-dev=1.21.100.3-jammy1 \
-                  libsgx-dcap-default-qpl=1.21.100.3-jammy1 \
-                  libsgx-dcap-default-qpl-dev=1.21.100.3-jammy1
+        run: sudo ./c/docker/sgx_runtime_libraries.sh
 
       - name: Build and push container image
-        working-directory: cdsi
         run: |
           ./mvnw -e -B deploy \
             -P-build-dev-enclave \

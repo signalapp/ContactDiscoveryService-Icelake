@@ -22,7 +22,6 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           submodules: recursive
-          path: cdsi
 
       - name: Expose Docker environmental variables for gha cache
         # This action takes in the ID tokens etc provided by the permissions,
@@ -34,12 +33,16 @@ jobs:
       - name: Setup Docker
         run: docker buildx create --use --name container --driver docker-container
 
-      - name: Build and test C
-        working-directory: cdsi/c
-        run: make docker_all docker_tests
+      - name: Test C
+        working-directory: c
+        run: make docker_tests
+
+      - name: Build all C
+        working-directory: c
+        run: make docker_all
 
       - name: Valgrind tests
-        working-directory: cdsi/c
+        working-directory: c
         run: make docker_valgrinds
 
       - name: Set up JDK 21
@@ -50,22 +53,11 @@ jobs:
           cache: 'maven'
 
       - name: Set up necessary SGX stuff
-        run: |
-            echo "deb [arch=amd64] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" | sudo tee /etc/apt/sources.list.d/msprod.list
-            wget -qO - https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-            echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' | sudo tee /etc/apt/sources.list.d/intel-sgx.list
-            wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | sudo apt-key add -
-            sudo apt update
-            sudo apt install -y \
-                  libsgx-dcap-ql=1.21.100.3-jammy1 \
-                  libsgx-dcap-ql-dev=1.21.100.3-jammy1 \
-                  libsgx-dcap-default-qpl=1.21.100.3-jammy1 \
-                  libsgx-dcap-default-qpl-dev=1.21.100.3-jammy1
+        run: sudo ./c/docker/sgx_runtime_libraries.sh
 
       - name: Build and test with Maven
-        working-directory: cdsi
         run: ./mvnw -e -B verify
 
       - name: Build and test lambda with Maven
-        working-directory: cdsi/filter-cds-updates
+        working-directory: filter-cds-updates
         run: ../mvnw -e -B verify

@@ -34,28 +34,8 @@ ENV PIPX_HOME=/opt/pipx
 ENV PIPX_BIN_DIR=/usr/local/bin
 RUN pipx install pbtools==0.47.0 && echo "done"
 
-COPY sgx.sources.list ms.sources.list /etc/apt/sources.list.d/
-
-# ms and intel repos keep old packages around,
-# however if they remove some of these in the future
-# binary packages can be retrieved from github releases
-RUN wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add - && \
-    wget -qO - https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
-    apt-get update && \
-    apt -y install \
-    libsgx-ae-id-enclave=1.22.100.3-jammy1 \
-    libsgx-ae-pce=2.25.100.3-jammy1 \
-    libsgx-ae-qe3=1.22.100.3-jammy1 \
-    libsgx-dcap-default-qpl=1.22.100.3-jammy1 \
-    libsgx-dcap-default-qpl-dev=1.22.100.3-jammy1 \
-    libsgx-dcap-ql=1.22.100.3-jammy1 \
-    libsgx-dcap-ql-dev=1.22.100.3-jammy1 \
-    libsgx-enclave-common=2.25.100.3-jammy1 \
-    libsgx-headers=2.25.100.3-jammy1 \
-    libsgx-pce-logic=1.22.100.3-jammy1 \
-    libsgx-qe3-logic=1.22.100.3-jammy1 \
-    libsgx-urts=2.25.100.3-jammy1 \
-    && echo Done
+COPY sgx_runtime_libraries.sh /tmp/sgx_runtime_libraries.sh
+RUN /tmp/sgx_runtime_libraries.sh
 
 ARG OPENENCLAVE_VERSION=0.19.10
 ARG OPENENCLAVE_HASH=4a5f77edaaebb1fee52b6f5b2b5f1200fd57a048fb3fcf82afa5dd69ee3b1a8f

@@ -1,0 +1,1 @@
+../../../c/docker/sgx_runtime_libraries.sh

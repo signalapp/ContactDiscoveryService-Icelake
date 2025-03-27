@@ -1,16 +1,7 @@
 FROM eclipse-temurin:21-jre-jammy@sha256:02fc89fa8766a9ba221e69225f8d1c10bb91885ddbd3c112448e23488ba40ab6
 
-RUN apt update && apt install -y gnupg2 wget gpg software-properties-common && \
-    echo "deb [arch=amd64] https://packages.microsoft.com/ubuntu/22.04/prod jammy main" | tee /etc/apt/sources.list.d/msprod.list && \
-    wget -qO - https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
-    echo 'deb [arch=amd64] https://download.01.org/intel-sgx/sgx_repo/ubuntu jammy main' | tee /etc/apt/sources.list.d/intel-sgx.list && \
-    wget -qO - https://download.01.org/intel-sgx/sgx_repo/ubuntu/intel-sgx-deb.key | apt-key add - && \
-    apt update && \
-    apt install -y \
-          libsgx-dcap-ql=1.22.100.3-jammy1 \
-          libsgx-dcap-ql-dev=1.22.100.3-jammy1 \
-          libsgx-dcap-default-qpl=1.22.100.3-jammy1 \
-          libsgx-dcap-default-qpl-dev=1.22.100.3-jammy1
+COPY classes/sgx_runtime_libraries.sh /tmp/sgx_runtime_libraries.sh
+RUN /tmp/sgx_runtime_libraries.sh
 
 WORKDIR /home/app
 COPY classes /home/app/classes
