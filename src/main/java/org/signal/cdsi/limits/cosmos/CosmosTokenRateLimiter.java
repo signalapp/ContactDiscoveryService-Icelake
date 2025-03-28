@@ -230,6 +230,7 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
             // check if the request would be rate limited without actually using the rate limit
             checkRateLimit(bucketRef[0], requestSize);
           } catch (RateLimitExceededException e) {
+            meterRegistry.counter(validateCounterName, "outcome", "requestWouldExceedRateLimit").increment();
             return Mono.error(e);
           }
           final TokenCost cost = TokenCost.create(key, newTokenId, requestSize, now.toString(), getTtl());
@@ -238,7 +239,8 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
           return this.container.createItem(cost, new PartitionKey(cost.getKey()), new CosmosItemRequestOptions());
         })
         .onErrorMap(CosmosException.class, CosmosTokenRateLimiter::marshal)
-        .doOnError(e -> logger.warn("Failed to persist token cost for {}", KeyToken.of(key, newTokenId), e))
+        .doOnError(e -> !(CompletionExceptions.unwrap(e) instanceof RateLimitExceededException), e ->
+            logger.warn("Failed to persist token cost for {}", KeyToken.of(key, newTokenId), e))
         .doFinally(ignore -> sample.stop(prepareTimer))
         .toFuture().thenApply(ignored -> null);
   }
