@@ -33,6 +33,7 @@ import org.apache.commons.codec.binary.Hex;
 import org.signal.cdsi.limits.LeakyBucketRateLimitConfiguration;
 import org.signal.cdsi.limits.LeakyBucketRateLimiter;
 import org.signal.cdsi.limits.RateLimitExceededException;
+import org.signal.cdsi.util.CompletionExceptions;
 
 @Requires(bean = StatefulRedisClusterConnection.class)
 @EachBean(LeakyBucketRateLimitConfiguration.class)
@@ -127,11 +128,13 @@ public class RedisLeakyBucketRateLimiter implements LeakyBucketRateLimiter {
           return null;
         })
         .exceptionally(e -> {
-          if (e instanceof CompletionException ce && ce.getCause() instanceof RateLimitExceededException) {
-            throw ce;
+          if (CompletionExceptions.unwrap(e) instanceof RateLimitExceededException) {
+            throw CompletionExceptions.wrap(e);
           }
           // If the leaky bucket data store is unavailable, allow the request to proceed. This is just a rate limit
           // for connections, and the more critical token rate limit will still be enforced.
+          meterRegistry.counter(VALIDATE_COUNTER_NAME, "outcome", "failOpen").increment();
+
           return null;
         })
         .thenRun(() -> validateTimer.record(Duration.between(start, clock.instant())));
