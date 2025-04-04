@@ -1,5 +1,3 @@
-# To build use:
-# docker build -t oebuild .
 FROM amd64/debian:bookworm@sha256:e83f38eb264420870d48bccc73f04df5fffc710c66528ad424f857eeff269915
 
 LABEL description="linux build environment for sgx."
