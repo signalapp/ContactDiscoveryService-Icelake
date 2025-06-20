@@ -7,6 +7,7 @@ package org.signal.cdsi.account.aws;
 
 import jakarta.annotation.PreDestroy;
 import jakarta.inject.Singleton;
+import org.signal.cdsi.util.CompletionExceptions;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import reactor.core.publisher.Mono;
@@ -24,6 +25,7 @@ import java.net.UnknownHostException;
 import java.util.Locale;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -62,7 +64,7 @@ class KinesisStreamConsumerSupplier {
             .build())
         .thenApply(registerStreamConsumerResponse -> registerStreamConsumerResponse.consumer().consumerARN())
         .exceptionallyCompose(throwable -> {
-          if (throwable instanceof ResourceInUseException) {
+          if (CompletionExceptions.unwrap(throwable) instanceof ResourceInUseException) {
             // The consumer already exists (presumably because the application restarted)
             return kinesisAsyncClient.describeStreamConsumer(DescribeStreamConsumerRequest.builder()
                     .streamARN(streamArn)
