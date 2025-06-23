@@ -11,7 +11,6 @@ updates:
 
 - package-ecosystem: maven
   directory: /
-  ignore:
   schedule:
     interval: monthly
   groups:
@@ -21,7 +20,6 @@ updates:
 
 - package-ecosystem: maven
   directory: /filter-cds-updates
-  ignore:
   schedule:
     interval: monthly
   groups:
