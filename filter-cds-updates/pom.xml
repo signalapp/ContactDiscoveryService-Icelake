@@ -6,7 +6,7 @@
 
   <groupId>org.signal</groupId>
   <artifactId>filter-cds-updates-lambda</artifactId>
-  <version>1.0.0</version>
+  <version>JGITVER</version>
 
   <properties>
     <maven.compiler.source>21</maven.compiler.source>
