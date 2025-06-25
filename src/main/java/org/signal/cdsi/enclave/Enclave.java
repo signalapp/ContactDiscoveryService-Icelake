@@ -49,7 +49,7 @@ import java.util.stream.LongStream;
 import org.signal.cdsi.limits.TokenRateLimiter;
 import org.signal.cdsi.proto.EnclaveLoad;
 import org.signal.cdsi.proto.TableStatistics;
-import org.signal.libsignal.cds2.AttestationDataException;
+import org.signal.libsignal.attest.AttestationDataException;
 import org.signal.libsignal.cds2.Cds2Metrics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
