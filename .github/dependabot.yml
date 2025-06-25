@@ -13,6 +13,10 @@ updates:
   directory: /
   schedule:
     interval: monthly
+  ignore:
+    # embedded-redis updates currently require Redis 7, and this project uses Redis 6
+    - dependency-name: "org.signal:embedded-redis"
+      versions: "[0.9,)"
   groups:
     minor-java-dependencies:
       # Java: Only group minor and patch updates (we want to carefully review major updates)
