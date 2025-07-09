@@ -10,7 +10,7 @@
   <parent>
     <groupId>io.micronaut.platform</groupId>
     <artifactId>micronaut-parent</artifactId>
-    <version>4.9.1</version>
+    <version>4.8.3</version>
   </parent>
 
   <properties>
@@ -451,6 +451,12 @@
                 <requireMavenVersion>
                   <version>3.9.9</version>
                 </requireMavenVersion>
+                <bannedDependencies>
+                  <excludes>
+                    <!-- azure-cosmos currently depends on netty 4.1 -->
+                    <exclude>io.netty:*:[4.2.0,)</exclude>
+                  </excludes>
+                </bannedDependencies>
               </rules>
             </configuration>
           </execution>
