@@ -5,7 +5,7 @@ on: [push]
 jobs:
   test-c:
     name: Build and test C
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
       packages: read
@@ -30,7 +30,7 @@ jobs:
 
   valgrind-c:
     name: Valgrind C
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
       packages: read
@@ -55,7 +55,7 @@ jobs:
 
   test-service:
     name: Build and test Java
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     timeout-minutes: 20
     permissions:
       packages: read
@@ -86,7 +86,7 @@ jobs:
 
   test-lambda:
     name: Build and test lambda
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
 
     steps:
       - name: Checkout main project
