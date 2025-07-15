@@ -1,24 +1,19 @@
-name: Build and push Docker image
+name: Enclave artifacts
 
 on:
-  release:
-    types: [published]
+  push:
+    branches: [ main ]
 
 env:
   DOCKER_BUILD_ARGS: --cache-from type=gha --cache-to type=gha
   DOCKER_BUILDKIT: 1
   BUILDX_CONTAINER: container
 
-permissions:
-  id-token: write
-  contents: read
-
 jobs:
-  build-and-push:
+  build_release_enclave:
+    name: Build release enclave
     runs-on: ubuntu-22.04
-    permissions:
-      id-token: write # This is required for requesting the JWT
-      contents: read  # This is required for actions/checkout
+    timeout-minutes: 20
 
     steps:
       - name: Checkout main project
@@ -43,22 +38,22 @@ jobs:
           java-version: 21
           cache: 'maven'
 
-      - name: 'Az CLI login'
-        uses: azure/login@a457da9ea143d694b1b9c7c869ebb04ebe844ef5 # Azure Login Action v2.3.0
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: 'Docker login'
-        run:
-          az acr login --name ${{ secrets.AZURE_CONTAINER_REGISTRY_NAME }}
-
       - name: Set up necessary SGX stuff
         run: sudo ./c/docker/sgx_runtime_libraries.sh
 
-      - name: Build and push container image
+      - name: Build and test with Maven
+        run: ./mvnw -e -B exec:exec@enclave-release
+
+      - name: Get untracked artifacts
+        id: artifacts
         run: |
-          ./mvnw -e -B deploy \
-            -Dpackaging=docker \
-            -Djib.to.image="${{ secrets.REGISTRY_LOGIN_SERVER }}/cdsi:${GITHUB_REF_NAME}"
+            git ls-files --others --exclude-standard src/main/resources
+            echo 'artifacts<<EOF' >> "$GITHUB_OUTPUT"
+            git ls-files --others --exclude-standard src/main/resources >> "$GITHUB_OUTPUT"
+            echo 'EOF' >> "$GITHUB_OUTPUT"
+
+      -  name: Upload enclave and JNI shim
+         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #v4.6.2
+         with:
+          name: enclave-and-jnishim
+          path: ${{steps.artifacts.outputs.artifacts}}

@@ -23,9 +23,9 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Expose Docker environmental variables for gha cache
+      - name: Expose Docker environment variables for gha cache
         # This action takes in the ID tokens etc provided by the permissions,
-        # as well as some environmental data, and exposes them to future steps
+        # as well as some environment data, and exposes them to future steps
         # in the correct locations and formats for their use with the `gha`
         # GitHub Actions cache for Docker.
         uses: crazy-max/ghaction-github-runtime@3cb05d89e1f492524af3d41a1c98c83bc3025124 # v3.1.0
