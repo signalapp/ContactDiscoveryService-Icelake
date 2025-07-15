@@ -1,8 +1,11 @@
 constant_time_check.s
-enclave.testbin
-enclave.testsigned
+enclave-debug.signed
+enclave.Standard_DC24s_v3
+enclave.Standard_DC2s_v3
 enclave.bin
 enclave.signed
+enclave.testbin
+enclave.testsigned
 libjnishim.so
 libjnishim.test.so
 private.pem

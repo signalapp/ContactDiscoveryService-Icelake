@@ -60,6 +60,5 @@ jobs:
       - name: Build and push container image
         run: |
           ./mvnw -e -B deploy \
-            -P-build-dev-enclave \
             -Dpackaging=docker \
             -Djib.to.image="${{ secrets.REGISTRY_LOGIN_SERVER }}/cdsi:${GITHUB_REF_NAME}"

@@ -9,7 +9,6 @@ include Makefile.base
 
 RESOURCES_DIR ?= $(dir $(CURDIR))/src/main/resources/org/signal/cdsi/enclave
 INSTALL_DIR ?= ../src/main/resources/org/signal/cdsi/enclave
-CONFIG ?= cds-test.conf
 AFL_FLAGS ?=
 ADDITIONAL_CFLAGS ?=
 
@@ -27,13 +26,18 @@ doc:
 	@echo
 	@echo = make path_oram/stash.test
 
-all: enclave.bin testhost.bin libjnishim.so enclave.signed fuzz.bin enclave.testsigned $(TESTS) enclave.test
+all: enclave.bin testhost.bin libjnishim.so sign fuzz.bin enclave.testsigned $(TESTS) enclave.test
 
 .PHONY: install
-install: enclave.signed libjnishim.so
+install: sign libjnishim.so
 	mkdir -pv $(INSTALL_DIR)
-	cp -fv enclave.signed $(INSTALL_DIR)/enclave-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),$(shell $(OE_DIR)/bin/oesign dump -e enclave.signed | fgrep -i mrenclave | cut -d '=' -f2)).signed
-	cp -fv libjnishim.so $(INSTALL_DIR)/libjnishim-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),$(shell $(OE_DIR)/bin/oesign dump -e enclave.signed | fgrep -i mrenclave | cut -d '=' -f2)).so
+	cp -fv enclave.Standard_DC2s_v3 $(INSTALL_DIR)/enclave-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),Standard_DC2s_v3-$(shell $(OE_DIR)/bin/oesign dump -e enclave.Standard_DC2s_v3 | fgrep -i mrenclave | cut -d '=' -f2)).signed
+	cp -fv libjnishim.so $(INSTALL_DIR)/libjnishim-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),Standard_DC2s_v3-$(shell $(OE_DIR)/bin/oesign dump -e enclave.Standard_DC2s_v3 | fgrep -i mrenclave | cut -d '=' -f2)).so
+	cp -fv enclave.Standard_DC24s_v3 $(INSTALL_DIR)/enclave-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),Standard_DC24s_v3-$(shell $(OE_DIR)/bin/oesign dump -e enclave.Standard_DC24s_v3 | fgrep -i mrenclave | cut -d '=' -f2)).signed
+	cp -fv libjnishim.so $(INSTALL_DIR)/libjnishim-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),Standard_DC24s_v3-$(shell $(OE_DIR)/bin/oesign dump -e enclave.Standard_DC24s_v3 | fgrep -i mrenclave | cut -d '=' -f2)).so
+	# If ENCLAVE_ID is specified, the -test enclave is the one that will be installed
+	cp -fv enclave-debug.signed $(INSTALL_DIR)/enclave-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),debug).signed
+	cp -fv libjnishim.so $(INSTALL_DIR)/libjnishim-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),debug).so
 
 cdsi.h cdsi.c: ../src/main/proto/cdsi.proto
 	cd proto && pbtools generate_c_source ../../src/main/proto/cdsi.proto
@@ -250,8 +254,17 @@ public.pem:
 	openssl genrsa -out private.pem -3 3072
 	openssl rsa -in private.pem -pubout -out public.pem
 
-enclave.signed: enclave.bin public.pem constant_time_check.test
-	$(OE_DIR)/bin/oesign sign -e enclave.bin -c $(CONFIG) -k private.pem -o $@
+.PHONY: sign
+sign: enclave-debug.signed enclave.Standard_DC2s_v3 enclave.Standard_DC24s_v3
+
+enclave-debug.signed: enclave.bin public.pem constant_time_check.test
+	$(OE_DIR)/bin/oesign sign -e enclave.bin -c cds-test.conf -k private.pem -o $@
+
+enclave.Standard_DC2s_v3: enclave.bin public.pem constant_time_check.test cds_Standard_DC2s_v3.conf
+	$(OE_DIR)/bin/oesign sign -e enclave.bin -c cds_Standard_DC2s_v3.conf -k private.pem -o $@
+
+enclave.Standard_DC24s_v3: enclave.bin public.pem constant_time_check.test cds_Standard_DC24s_v3.conf
+	$(OE_DIR)/bin/oesign sign -e enclave.bin -c cds_Standard_DC24s_v3.conf -k private.pem -o $@
 
 enclave.testsigned: enclave.testbin public.pem cds-test.conf
 	$(OE_DIR)/bin/oesign sign -e enclave.testbin -c cds-test.conf -k private.pem -o $@
@@ -269,7 +282,9 @@ clean:
       enclave.bin \
       enclave.testsigned \
       enclave.testbin \
-      enclave.signed \
+      enclave.Standard_DC2s_v3 \
+      enclave.Standard_DC24s_v3 \
+      enclave-debug.signed \
       libjnishim.so \
       trust/ \
       untrust/ \
@@ -290,7 +305,7 @@ clean:
 docker_%:
 	mkdir -pv "$(RESOURCES_DIR)"
 	docker buildx build --platform linux/amd64 -t cdsi-enclave-build ./docker --load $(DOCKER_BUILD_ARGS)
-	docker run --rm -v "$(CURDIR)":/src -v "$(CURDIR)/../src/main":/src/main -v "$(RESOURCES_DIR)":/resources --user "$$(id -u):$$(id -g)" cdsi-enclave-build make ENCLAVE_ID=$(ENCLAVE_ID) CONFIG=$(CONFIG) INSTALL_DIR=/resources AFL_FLAGS="$(AFL_FLAGS)" ADDITIONAL_CFLAGS="$(ADDITIONAL_CFLAGS)" $*
+	docker run --rm -v "$(CURDIR)":/src -v "$(CURDIR)/../src/main":/src/main -v "$(RESOURCES_DIR)":/resources --user "$$(id -u):$$(id -g)" cdsi-enclave-build make ENCLAVE_ID=$(ENCLAVE_ID) INSTALL_DIR=/resources AFL_FLAGS="$(AFL_FLAGS)" ADDITIONAL_CFLAGS="$(ADDITIONAL_CFLAGS)" $*
 
 dockersh:
 	mkdir -pv "$(RESOURCES_DIR)"
