@@ -243,19 +243,6 @@
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>org.signal</groupId>
-      <artifactId>embedded-redis</artifactId>
-      <version>0.8.3</version>
-      <scope>test</scope>
-      <exclusions>
-        <exclusion>
-          <!-- several transitive dependencies use different guava versions -->
-          <groupId>com.google.guava</groupId>
-          <artifactId>guava</artifactId>
-        </exclusion>
-      </exclusions>
-    </dependency>
-    <dependency>
       <groupId>org.signal.forks</groupId>
       <artifactId>noise-java</artifactId>
       <version>0.1.1</version>
