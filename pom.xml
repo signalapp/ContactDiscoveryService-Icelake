@@ -10,7 +10,7 @@
   <parent>
     <groupId>io.micronaut.platform</groupId>
     <artifactId>micronaut-parent</artifactId>
-    <version>4.8.3</version>
+    <version>4.9.3</version>
   </parent>
 
   <properties>
@@ -21,13 +21,13 @@
     <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
 
     <testcontainers.version>1.21.3</testcontainers.version>
-    <aws.sdk.version>2.31.77</aws.sdk.version>
-    <commons.codec.version>1.18.0</commons.codec.version>
+    <aws.sdk.version>2.33.0</aws.sdk.version>
+    <commons.codec.version>1.19.0</commons.codec.version>
     <guava.version>33.4.8-jre</guava.version>
     <make.docker.prefix>docker_</make.docker.prefix>
     <httpcomponents.httpcore.version>4.4.16</httpcomponents.httpcore.version>
     <hdrhistogram.version>2.2.2</hdrhistogram.version>
-    <jetty.version>12.0.23</jetty.version>
+    <jetty.version>12.1.0</jetty.version>
   </properties>
 
   <repositories>
@@ -73,7 +73,7 @@
     <dependency>
       <groupId>com.azure</groupId>
       <artifactId>azure-cosmos</artifactId>
-      <version>4.72.0</version>
+      <version>4.73.1</version>
       <exclusions>
         <!-- com.azure:azure-cosmos directly and transitively depends on different versions of the hdrhistogram package.
         Excluding the package here and making it a direct dependency to resolve that internal conflict. -->
@@ -96,7 +96,7 @@
     <dependency>
       <groupId>com.google.protobuf</groupId>
       <artifactId>protobuf-java</artifactId>
-      <version>4.31.1</version>
+      <version>4.32.0</version>
     </dependency>
     <dependency>
       <groupId>commons-codec</groupId>
@@ -160,7 +160,7 @@
     <dependency>
       <groupId>org.signal</groupId>
       <artifactId>libsignal-server</artifactId>
-      <version>0.76.3</version>
+      <version>0.79.0</version>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
@@ -197,7 +197,7 @@
       <!-- for import javax.annotation.Nullable -->
       <groupId>com.github.spotbugs</groupId>
       <artifactId>spotbugs-annotations</artifactId>
-      <version>4.9.3</version>
+      <version>4.9.4</version>
     </dependency>
 
     <!-- Test dependencies -->
@@ -426,7 +426,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>3.6.0</version>
+        <version>3.6.1</version>
         <executions>
           <execution>
             <goals>
