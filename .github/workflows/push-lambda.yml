@@ -1,0 +1,42 @@
+name: Build and push filter-cds-updates lambda
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@a03048d87541d1d9fcf2ecf528a4a65ba9bd7838 # v5.0.0
+        with:
+          role-to-assume: ${{ vars.AWS_IAM_ROLE }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Checkout main project
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
+
+      # The checkout action clobbers our annotated tags with lightweight tags, which confuses JGITVER.
+      # Please see https://github.com/actions/checkout/issues/882 for additional discussion.
+      - name: Fetch tags
+        run: git fetch --tags --force origin
+
+      - name: Set up JDK
+        uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0
+        with:
+          distribution: 'temurin'
+          java-version-file: .java-version
+          cache: 'maven'
+
+      - name: Build and lambda jar
+        working-directory: filter-cds-updates
+        run: ../mvnw -e -B verify -Djgitver.use-version=${{ github.ref_name }}
+
+      - name: Upload artifact to S3
+        working-directory: filter-cds-updates
+        run: aws s3 cp target/filter-cds-updates-lambda-${{ github.ref_name }}.jar s3://${{ vars.S3_BUCKET }}/${{ vars.S3_BUCKET_KEY }}/
