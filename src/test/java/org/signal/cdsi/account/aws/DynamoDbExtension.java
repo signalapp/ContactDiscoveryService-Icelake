@@ -5,13 +5,18 @@
 
 package org.signal.cdsi.account.aws;
 
-import com.amazonaws.services.dynamodbv2.local.embedded.DynamoDBEmbedded;
-import com.amazonaws.services.dynamodbv2.local.shared.access.AmazonDynamoDBLocal;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
+import javax.annotation.Nullable;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.testcontainers.containers.GenericContainer;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeDefinition;
@@ -25,14 +30,17 @@ import software.amazon.awssdk.services.dynamodb.streams.DynamoDbStreamsAsyncClie
 
 public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback {
 
-  static final  String DEFAULT_TABLE_NAME = "test_table";
+  static final String DEFAULT_TABLE_NAME = "test_table";
 
   static final ProvisionedThroughput DEFAULT_PROVISIONED_THROUGHPUT = ProvisionedThroughput.builder()
       .readCapacityUnits(20L)
       .writeCapacityUnits(20L)
       .build();
 
-  private AmazonDynamoDBLocal embedded;
+  private static final String DYNAMO_DB_IMAGE =
+      "amazon/dynamodb-local:3.1.0@sha256:7ef4a2c45b58c2901e70a4f28e0953a422c2c631baaaf5e2c15e0805740c7752";
+
+  private static final int CONTAINER_PORT = 8000;
 
   private final String tableName;
   private final String hashKeyName;
@@ -45,12 +53,21 @@ public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback 
   private final long readCapacityUnits;
   private final long writeCapacityUnits;
 
+  @Nullable
+  private GenericContainer<?> dynamoDbContainer;
+
   private DynamoDbClient dynamoDbClient;
   private DynamoDbAsyncClient dynamoDbAsyncClient;
   private DynamoDbStreamsAsyncClient dynamoDbStreamsAsyncClient;
 
-  private DynamoDbExtension(String tableName, String hashKey, String rangeKey, List<AttributeDefinition> attributeDefinitions, List<GlobalSecondaryIndex> globalSecondaryIndexes, long readCapacityUnits,
-      long writeCapacityUnits, StreamSpecification streamSpecification) {
+  private DynamoDbExtension(final String tableName,
+      final String hashKey,
+      final String rangeKey,
+      final List<AttributeDefinition> attributeDefinitions,
+      final List<GlobalSecondaryIndex> globalSecondaryIndexes,
+      final long readCapacityUnits,
+      final long writeCapacityUnits,
+      final StreamSpecification streamSpecification) {
 
     this.tableName = tableName;
     this.hashKeyName = hashKey;
@@ -69,26 +86,29 @@ public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback 
   }
 
   @Override
-  public void afterEach(ExtensionContext context) {
-    try {
-      embedded.shutdown();
-    } catch (Exception e) {
-      throw new RuntimeException(e);
-    }
-  }
+  public void beforeEach(final ExtensionContext context) {
+    dynamoDbContainer = new GenericContainer<>(DYNAMO_DB_IMAGE)
+        .withExposedPorts(CONTAINER_PORT)
+        .withCommand("-jar DynamoDBLocal.jar -inMemory -sharedDb -disableTelemetry");
 
-  @Override
-  public void beforeEach(ExtensionContext context) throws Exception {
-
-    embedded = DynamoDBEmbedded.create(true);
+    dynamoDbContainer.start();
 
     initializeClient();
 
     createTable();
   }
 
+  @Override
+  public void afterEach(final ExtensionContext context) {
+    if (dynamoDbContainer != null) {
+      dynamoDbContainer.stop();
+      dynamoDbContainer = null;
+    }
+  }
+
   private void createTable() {
-    KeySchemaElement[] keySchemaElements;
+    final KeySchemaElement[] keySchemaElements;
+
     if (rangeKeyName == null) {
       keySchemaElements = new KeySchemaElement[] {
           KeySchemaElement.builder().attributeName(hashKeyName).keyType(KeyType.HASH).build(),
@@ -116,9 +136,29 @@ public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback 
   }
 
   private void initializeClient() {
-    dynamoDbClient = embedded.dynamoDbClient();
-    dynamoDbAsyncClient = embedded.dynamoDbAsyncClient();
-    dynamoDbStreamsAsyncClient = embedded.dynamoDbStreamsAsyncClient();
+    final URI endpoint = URI.create(String.format("http://%s:%d", dynamoDbContainer.getHost(), dynamoDbContainer.getMappedPort(CONTAINER_PORT)));
+
+    final Region region = Region.of("local");
+    final AwsCredentialsProvider awsCredentialsProvider = StaticCredentialsProvider.create(
+        AwsBasicCredentials.create("test", "test"));
+
+    dynamoDbClient = DynamoDbClient.builder()
+        .region(region)
+        .credentialsProvider(awsCredentialsProvider)
+        .endpointOverride(endpoint)
+        .build();
+
+    dynamoDbAsyncClient = DynamoDbAsyncClient.builder()
+        .region(region)
+        .credentialsProvider(awsCredentialsProvider)
+        .endpointOverride(endpoint)
+        .build();
+
+    dynamoDbStreamsAsyncClient = DynamoDbStreamsAsyncClient.builder()
+        .region(region)
+        .credentialsProvider(awsCredentialsProvider)
+        .endpointOverride(endpoint)
+        .build();
   }
 
   public static class DynamoDbExtensionBuilder {
@@ -135,7 +175,6 @@ public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback 
     private long writeCapacityUnits = DEFAULT_PROVISIONED_THROUGHPUT.writeCapacityUnits();
 
     private DynamoDbExtensionBuilder() {
-
     }
 
     public DynamoDbExtensionBuilder tableName(String databaseName) {
