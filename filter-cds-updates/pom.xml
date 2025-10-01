@@ -20,7 +20,7 @@
     <netty.version>4.2.4.Final</netty.version>
 
     <aws-lambda-java-tests.version>1.1.2</aws-lambda-java-tests.version>
-    <junit.version>5.13.4</junit.version>
+    <junit.version>6.0.0</junit.version>
     <mockito-core.version>5.19.0</mockito-core.version>
   </properties>
 
