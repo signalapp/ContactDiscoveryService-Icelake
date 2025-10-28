@@ -14,6 +14,9 @@ updates:
   schedule:
     interval: monthly
   ignore:
+    # We can't update Micronaut past 4.8.3 until Cosmos supports Netty 4.2
+    - dependency-name: "io.micronaut.platform:micronaut-parent"
+      versions: "[4.9,)"
     # embedded-redis updates currently require Redis 7, and this project uses Redis 6
     - dependency-name: "org.signal:embedded-redis"
       versions: "[0.9,)"
