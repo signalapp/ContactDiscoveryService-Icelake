@@ -12,6 +12,7 @@ import javax.annotation.Nullable;
 import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.signal.cdsi.util.TestcontainersImages;
 import org.testcontainers.containers.GenericContainer;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -36,9 +37,6 @@ public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback 
       .readCapacityUnits(20L)
       .writeCapacityUnits(20L)
       .build();
-
-  private static final String DYNAMO_DB_IMAGE =
-      "amazon/dynamodb-local:3.1.0@sha256:7ef4a2c45b58c2901e70a4f28e0953a422c2c631baaaf5e2c15e0805740c7752";
 
   private static final int CONTAINER_PORT = 8000;
 
@@ -87,7 +85,7 @@ public class DynamoDbExtension implements BeforeEachCallback, AfterEachCallback 
 
   @Override
   public void beforeEach(final ExtensionContext context) {
-    dynamoDbContainer = new GenericContainer<>(DYNAMO_DB_IMAGE)
+    dynamoDbContainer = new GenericContainer<>(TestcontainersImages.getDynamoDb())
         .withExposedPorts(CONTAINER_PORT)
         .withCommand("-jar DynamoDBLocal.jar -inMemory -sharedDb -disableTelemetry");
 

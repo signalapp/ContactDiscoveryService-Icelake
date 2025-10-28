@@ -28,6 +28,7 @@ import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeAllCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
+import org.signal.cdsi.util.TestcontainersImages;
 import org.testcontainers.containers.ComposeContainer;
 import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.containers.wait.strategy.WaitStrategy;
@@ -40,24 +41,22 @@ public class RedisClusterExtension implements BeforeAllCallback, BeforeEachCallb
 
   private static final String[] REDIS_SERVICE_NAMES = new String[] { "redis-0-1", "redis-1-1", "redis-2-1" };
 
-  // The image we're using is bitnami/redis-cluster:6.2; please see
-  // https://hub.docker.com/layers/bitnami/redis-cluster/6.2/images/sha256-764cc3c12b39f215255926d46471fbe7f70689c629b2d4ac60ea5407d90bf7ff
   private static final String CLUSTER_COMPOSE_FILE_CONTENTS = """
       services:
         redis-0:
-          image: docker.io/bitnami/redis-cluster@sha256:d973a2aa8b6688190ca4e4544b2ff859ef1e9f8081518558270df34e23ff1df7
+          image: %1$s
           environment:
             - 'ALLOW_EMPTY_PASSWORD=yes'
             - 'REDIS_NODES=redis-0 redis-1 redis-2'
 
         redis-1:
-          image: docker.io/bitnami/redis-cluster@sha256:d973a2aa8b6688190ca4e4544b2ff859ef1e9f8081518558270df34e23ff1df7
+          image: %1$s
           environment:
             - 'ALLOW_EMPTY_PASSWORD=yes'
             - 'REDIS_NODES=redis-0 redis-1 redis-2'
 
         redis-2:
-          image: docker.io/bitnami/redis-cluster@sha256:d973a2aa8b6688190ca4e4544b2ff859ef1e9f8081518558270df34e23ff1df7
+          image: %1$s
           depends_on:
             - redis-0
             - redis-1
@@ -66,7 +65,7 @@ public class RedisClusterExtension implements BeforeAllCallback, BeforeEachCallb
             - 'REDIS_CLUSTER_REPLICAS=0'
             - 'REDIS_NODES=redis-0 redis-1 redis-2'
             - 'REDIS_CLUSTER_CREATOR=yes'
-      """;
+      """.formatted(TestcontainersImages.getRedisCluster());
 
   private ComposeContainer composeContainer;
   private Map<HostAndPort, HostAndPort> exposedAddressesByInternalAddress;
