@@ -40,7 +40,7 @@ class RedisLeakyBucketRateLimiterTest {
   private static final Instant CURRENT_TIME = Instant.now();
 
   @RegisterExtension
-  static final RedisClusterExtension REDIS_CLUSTER_EXTENSION = RedisClusterExtension.builder().build();
+  static final RedisClusterExtension REDIS_CLUSTER_EXTENSION = new RedisClusterExtension();
 
   private static final int DEFAULT_BUCKET_SIZE = 100;
 
