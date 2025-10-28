@@ -28,8 +28,8 @@ import io.micronaut.websocket.annotation.OnMessage;
 import io.micronaut.websocket.annotation.OnOpen;
 import io.micronaut.websocket.annotation.ServerWebSocket;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -106,7 +106,17 @@ public class WebSocketHandler {
     final CloseReason closeReason = switch (CompletionExceptions.unwrap(cause)) {
       case RateLimitExceededException rateLimitExceededException -> {
         logger.debug("Websocket for session {} closed due to rate limit exceeded", session.getId());
-        yield new CloseReason(4008, retryAfterCloseReason(rateLimitExceededException.getRetryDuration()));
+
+        final String retryAfterJson;
+
+        try {
+          retryAfterJson = OBJECT_MAPPER.writeValueAsString(new RetryAfterMessage(rateLimitExceededException.getRetryDuration().toSeconds()));
+        } catch (final JsonProcessingException e) {
+          // This should never happen when writing a well-known object to a string
+          throw new UncheckedIOException(e);
+        }
+
+        yield new CloseReason(4008, retryAfterJson);
       }
 
       case ClosedEarlyException _ -> {
@@ -143,16 +153,6 @@ public class WebSocketHandler {
 
     this.close(session, closeReason);
     return null;
-  }
-
-
-  private String retryAfterCloseReason(Duration retryAfter) {
-      try {
-        return OBJECT_MAPPER.writeValueAsString(new RetryAfterMessage(retryAfter.toSeconds()));
-      } catch (JsonProcessingException e) {
-        logger.error("Failed to serialize retry after", e);
-        return "";
-      }
   }
 
   private static int statusCodeFromCdsiEnclaveException(CdsiEnclaveException e) {
