@@ -157,7 +157,7 @@
     <dependency>
       <groupId>org.signal</groupId>
       <artifactId>libsignal-server</artifactId>
-      <version>0.76.3</version>
+      <version>0.85.1</version>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
