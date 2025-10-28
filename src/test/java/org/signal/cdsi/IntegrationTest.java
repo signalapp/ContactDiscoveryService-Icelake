@@ -9,11 +9,10 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.protobuf.ByteString;
-import io.lettuce.core.StrAlgoArgs.By;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.client.annotation.Client;
 import io.micronaut.test.extensions.junit5.annotation.MicronautTest;
@@ -31,7 +30,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import org.junit.Assert;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -476,14 +474,14 @@ class IntegrationTest {
               ByteString.copyFrom(List.of(UUIDUtil.toByteString(ACI), UUIDUtil.toByteString(UUID.randomUUID()))))
           .build());
 
-      Assert.fail("should throw a close exception after rate limit is exceeded");
+      fail("should throw a close exception after rate limit is exceeded");
     } catch (CloseException e) {
       assertEquals(4008, e.getReason().getCode());
       ObjectMapper objectMapper = new ObjectMapper();
       System.out.println(e.getReason().getReason());
       final RetryAfterMessage retryAfter = WebSocketHandler.OBJECT_MAPPER.readValue(e.getReason().getReason(),
           RetryAfterMessage.class);
-      assertEquals(retryAfter.getRetryAfter(), 13);
+      assertEquals(13, retryAfter.getRetryAfter());
     }
   }
 
