@@ -24,7 +24,7 @@
 
     <aws.sdk.version>2.36.1</aws.sdk.version>
     <commons.codec.version>1.19.0</commons.codec.version>
-    <guava.version>33.4.8-jre</guava.version>
+    <guava.version>33.5.0-jre</guava.version>
     <httpcomponents.httpcore.version>4.4.16</httpcomponents.httpcore.version>
     <hdrhistogram.version>2.2.2</hdrhistogram.version>
     <testcontainers.version>2.0.1</testcontainers.version>
