@@ -10,6 +10,8 @@
   <parent>
     <groupId>io.micronaut.platform</groupId>
     <artifactId>micronaut-parent</artifactId>
+
+    <!-- 4.8.3 is the latest version to still use Netty 4.1; until Cosmos supports Netty 4.2, we'll need to stay here -->
     <version>4.8.3</version>
   </parent>
 
