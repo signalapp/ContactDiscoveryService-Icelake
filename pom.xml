@@ -23,8 +23,8 @@
     <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
 
     <testcontainers.version>1.21.3</testcontainers.version>
-    <aws.sdk.version>2.31.77</aws.sdk.version>
-    <commons.codec.version>1.18.0</commons.codec.version>
+    <aws.sdk.version>2.36.1</aws.sdk.version>
+    <commons.codec.version>1.19.0</commons.codec.version>
     <guava.version>33.4.8-jre</guava.version>
     <make.docker.prefix>docker_</make.docker.prefix>
     <httpcomponents.httpcore.version>4.4.16</httpcomponents.httpcore.version>
