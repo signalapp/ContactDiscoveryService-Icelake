@@ -18,3 +18,6 @@ enclave:
 logger:
   levels:
     org.signal: TRACE
+
+websocket:
+  graceful-shutdown-duration: PT1S
