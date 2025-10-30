@@ -16,7 +16,7 @@
 
     <aws-lambda-java-core.version>1.4.0</aws-lambda-java-core.version>
     <aws-lambda-java-events.version>3.16.1</aws-lambda-java-events.version>
-    <aws-sdk.version>2.36.3</aws-sdk.version>
+    <aws-sdk.version>2.37.1</aws-sdk.version>
     <guava.version>33.5.0-jre</guava.version>
     <jackson.version>2.20.0</jackson.version>
     <netty.version>4.2.7.Final</netty.version>
