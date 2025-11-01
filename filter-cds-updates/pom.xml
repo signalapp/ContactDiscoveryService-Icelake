@@ -16,13 +16,13 @@
 
     <aws-lambda-java-core.version>1.4.0</aws-lambda-java-core.version>
     <aws-lambda-java-events.version>3.16.1</aws-lambda-java-events.version>
-    <aws-sdk.version>2.36.3</aws-sdk.version>
+    <aws-sdk.version>2.37.3</aws-sdk.version>
     <guava.version>33.5.0-jre</guava.version>
-    <jackson.version>2.20.0</jackson.version>
+    <jackson.version>2.20.1</jackson.version>
     <netty.version>4.2.7.Final</netty.version>
 
     <aws-lambda-java-tests.version>1.1.2</aws-lambda-java-tests.version>
-    <junit.version>6.0.0</junit.version>
+    <junit.version>6.0.1</junit.version>
     <mockito-core.version>5.20.0</mockito-core.version>
   </properties>
 
