@@ -19,7 +19,7 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Checkout main project
-        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # 5.0.0
+        uses: actions/checkout@1af3b93b6815bc44a9784bd300feb67ff0d1eeb3 # 6.0.0
 
       # The checkout action clobbers our annotated tags with lightweight tags, which confuses JGITVER.
       # Please see https://github.com/actions/checkout/issues/882 for additional discussion.
