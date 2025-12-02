@@ -11,6 +11,8 @@ micronaut:
     export:
       statsd:
         enabled: false
+      otlp:
+        enabled: false
   server:
     netty:
       # don't compress

@@ -129,6 +129,10 @@
       <artifactId>micronaut-micrometer-registry-statsd</artifactId>
     </dependency>
     <dependency>
+      <groupId>io.micronaut.micrometer</groupId>
+      <artifactId>micronaut-micrometer-registry-otlp</artifactId>
+    </dependency>
+    <dependency>
       <groupId>io.micronaut</groupId>
       <artifactId>micronaut-runtime</artifactId>
     </dependency>
