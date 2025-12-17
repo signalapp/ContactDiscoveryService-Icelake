@@ -81,8 +81,11 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
   private final MeterRegistry meterRegistry;
   private final boolean gcOldTokens;
 
-  private final static String validateCounterName = name(CosmosTokenRateLimiter.class, "validate");
-  private final static String tokenGcCounterName = name(CosmosTokenRateLimiter.class, "tokenGc");
+  private final static String PREPARE_TIMER_NAME = name(CosmosTokenRateLimiter.class, "prepareTimer");
+  private final static String TOKEN_GC_COUNTER_NAME = name(CosmosTokenRateLimiter.class, "tokenGc");
+  private final static String TOKEN_GC_TIMER_NAME = name(CosmosTokenRateLimiter.class, "tokenGcTimer");
+  private final static String VALIDATE_COUNTER_NAME = name(CosmosTokenRateLimiter.class, "validate");
+  private final static String VALIDATE_TIMER_NAME = name(CosmosTokenRateLimiter.class, "validateTimer");
 
   private final DistributionSummary userTokenCountDist;
 
@@ -115,9 +118,9 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
     userTokenCountDist = DistributionSummary.builder(name(getClass(), "userTokenCount"))
         .distributionStatisticExpiry(Duration.ofHours(2))
         .register(meterRegistry);
-    tokenGcTimer = meterRegistry.timer(name(getClass(), "tokenGcTimer"));
-    prepareTimer = meterRegistry.timer(name(getClass(), "prepare"));
-    validateTimer = meterRegistry.timer(name(getClass(), "validate"));
+    tokenGcTimer = meterRegistry.timer(TOKEN_GC_TIMER_NAME);
+    prepareTimer = meterRegistry.timer(PREPARE_TIMER_NAME);
+    validateTimer = meterRegistry.timer(VALIDATE_TIMER_NAME);
   }
 
   /**
@@ -230,7 +233,7 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
             // check if the request would be rate limited without actually using the rate limit
             checkRateLimit(bucketRef[0], requestSize);
           } catch (RateLimitExceededException e) {
-            meterRegistry.counter(validateCounterName, "outcome", "requestWouldExceedRateLimit").increment();
+            meterRegistry.counter(VALIDATE_COUNTER_NAME, "outcome", "requestWouldExceedRateLimit").increment();
             return Mono.error(e);
           }
           final TokenCost cost = TokenCost.create(key, newTokenId, requestSize, now.toString(), getTtl());
@@ -390,7 +393,7 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
               new CosmosBatchItemRequestOptions().setIfMatchETag(bucketResponse.getETag()));
           return container.executeCosmosBatch(batch)
               .doFinally(signalType ->
-                meterRegistry.counter(tokenGcCounterName, "outcome", switch (signalType) {
+                meterRegistry.counter(TOKEN_GC_COUNTER_NAME, "outcome", switch (signalType) {
                   case ON_COMPLETE -> "success";
                   case ON_ERROR -> "failed";
                   default -> "unknown";
@@ -439,20 +442,20 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
         .doOnError(ex -> {
           ex = CompletionExceptions.unwrap(ex);
           if (ex instanceof RateLimitExceededException) {
-            meterRegistry.counter(validateCounterName, "outcome", "rateLimitExceeded").increment();
+            meterRegistry.counter(VALIDATE_COUNTER_NAME, "outcome", "rateLimitExceeded").increment();
           } else if (ex instanceof ConflictException) {
             // Failed due to a RMW conflict. The client should be told to
             // immediately retry
             logger.info("Failed to update rate limit for {} due to read-then-write lock conflict",
                 KeyToken.of(key, tokenId));
-            meterRegistry.counter(validateCounterName, "outcome", "updateConflict").increment();
+            meterRegistry.counter(VALIDATE_COUNTER_NAME, "outcome", "updateConflict").increment();
           } else {
-            meterRegistry.counter(validateCounterName, "outcome", "error").increment();
+            meterRegistry.counter(VALIDATE_COUNTER_NAME, "outcome", "error").increment();
             logger.error("Failed to update rate limit for {}", KeyToken.of(key, tokenId), ex);
           }
         })
         .onErrorMap(CosmosException.class, CosmosTokenRateLimiter::marshal)
-        .doOnSuccess(ignore -> meterRegistry.counter(validateCounterName, "outcome", "success").increment())
+        .doOnSuccess(ignore -> meterRegistry.counter(VALIDATE_COUNTER_NAME, "outcome", "success").increment())
         .doFinally(ignored -> sample.stop(validateTimer))
         .toFuture()
         .thenApply(ignored -> spent[0]);
