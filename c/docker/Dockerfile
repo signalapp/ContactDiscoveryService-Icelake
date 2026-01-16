@@ -1,4 +1,4 @@
-FROM amd64/debian:bookworm@sha256:e83f38eb264420870d48bccc73f04df5fffc710c66528ad424f857eeff269915
+FROM amd64/debian:bookworm@sha256:376a959e4bc54d1bc51e9487a78e33deeef62b8f3dc7754ad5acd33330f38d7a
 
 LABEL description="linux build environment for sgx."
 
