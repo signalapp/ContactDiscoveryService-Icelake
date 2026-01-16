@@ -15,7 +15,6 @@ import jakarta.inject.Singleton;
 class DistributionStatisticsConfigMeterFilter implements MeterFilter {
 
   private static final DistributionStatisticConfig defaultDistributionStatisticConfig = DistributionStatisticConfig.builder()
-      .percentiles(.5, .75, .95, .99, .999)
       .percentilesHistogram(true)
       .build();
 

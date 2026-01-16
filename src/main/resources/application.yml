@@ -9,8 +9,6 @@ micronaut:
   metrics:
     enabled: true
     export:
-      statsd:
-        enabled: false
       otlp:
         enabled: false
   server:
