@@ -22,12 +22,12 @@
     <micronaut.runtime>netty</micronaut.runtime>
     <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
 
-    <aws.sdk.version>2.36.3</aws.sdk.version>
-    <commons.codec.version>1.19.0</commons.codec.version>
+    <aws.sdk.version>2.41.19</aws.sdk.version>
+    <commons.codec.version>1.21.0</commons.codec.version>
     <guava.version>33.5.0-jre</guava.version>
     <httpcomponents.httpcore.version>4.4.16</httpcomponents.httpcore.version>
     <hdrhistogram.version>2.2.2</hdrhistogram.version>
-    <testcontainers.version>2.0.1</testcontainers.version>
+    <testcontainers.version>2.0.3</testcontainers.version>
 
     <make.docker.prefix>docker_</make.docker.prefix>
 
@@ -70,7 +70,7 @@
     <dependency>
       <groupId>com.azure</groupId>
       <artifactId>azure-cosmos</artifactId>
-      <version>4.75.0</version>
+      <version>4.77.0</version>
       <exclusions>
         <!-- com.azure:azure-cosmos directly and transitively depends on different versions of the hdrhistogram package.
         Excluding the package here and making it a direct dependency to resolve that internal conflict. -->
@@ -160,7 +160,7 @@
     <dependency>
       <groupId>org.signal</groupId>
       <artifactId>libsignal-server</artifactId>
-      <version>0.85.1</version>
+      <version>0.86.5</version>
     </dependency>
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
@@ -317,13 +317,13 @@
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>exec-maven-plugin</artifactId>
-          <version>3.6.2</version>
+          <version>3.6.3</version>
         </plugin>
 
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>templating-maven-plugin</artifactId>
-          <version>3.0.0</version>
+          <version>3.1.0</version>
         </plugin>
 
         <plugin>
