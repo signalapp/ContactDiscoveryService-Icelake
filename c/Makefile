@@ -74,10 +74,6 @@ libnoise.a: libsodium.a
 	 $(MAKE) -j)
 	cp -vf noise-c/src/protocol/libnoiseprotocol.a libnoise.a
 
-libsip.a: SipHash/halfsiphash.c
-	$(TRUSTED_CC) $(TRUSTED_CFLAGS) -o SipHash/halfsiphash.o -c SipHash/halfsiphash.c
-	ar rcs $@ SipHash/halfsiphash.o
-
 SUBDIRS=$(subst /,,$(wildcard */))
 .PHONY: $(SUBDIRS)
 
@@ -134,6 +130,7 @@ TESTABLE_LIBRARY_DIRS= \
     util \
     fixedset \
     aci_pni_uak_helpers \
+    halfsiphash \
 ##TESTABLE_LIBRARY_DIRS
 
 enclave.bin: \
@@ -141,7 +138,6 @@ enclave.bin: \
     libenclave_t.a \
     $(patsubst %,lib%_t.a,$(TESTABLE_LIBRARY_DIRS)) \
     libnoise.a \
-    libsip.a \
     ##
 	$(TRUSTED_CC) -o $@ $(TRUSTED_OE_LIBS) $^ $(TRUSTED_OE_LIBS) $(TRUSTED_LDFLAGS)
 
@@ -150,7 +146,6 @@ enclave.testbin: \
     libenclave_test.a \
     $(patsubst %,lib%_test.a,$(TESTABLE_LIBRARY_DIRS)) \
     libnoise.a \
-    libsip.a \
     ##
 	$(TRUSTED_CC) -o $@ $(TRUSTED_OE_LIBS) $^ $(TRUSTED_OE_LIBS) $(TRUSTED_LDFLAGS)
 
@@ -160,7 +155,6 @@ fuzz.bin: \
     libenclave_afl.a \
     $(patsubst %,lib%_afl.a,$(TESTABLE_LIBRARY_DIRS)) \
     libnoise.a \
-    libsip.a \
     ##
 	$(AFL_CC) -o $@ $(AFL_CFLAGS) $^ $(AFL_LDFLAGS)
  
@@ -190,8 +184,8 @@ testhost.bin: \
     ##
 	$(UNTRUSTED_CC) -o $@ $^ $(UNTRUSTED_OE_LIBS) $(UNTRUSTED_LDFLAGS)
 
-%.test: $(patsubst %,lib%_test.a,$(TESTABLE_LIBRARY_DIRS)) libsip.a libnoise.a
-	$(TEST_CC) -o $@ $(dir $*)/tests/$(notdir $*).c $^ $(TEST_CFLAGS) $(TEST_LDFLAGS) libsip.a $(WARNING_CFLAGS)
+%.test: $(patsubst %,lib%_test.a,$(TESTABLE_LIBRARY_DIRS)) libnoise.a
+	$(TEST_CC) -o $@ $(dir $*)/tests/$(notdir $*).c $^ $(TEST_CFLAGS) $(TEST_LDFLAGS) $(WARNING_CFLAGS)
 
 %.test.out: %.test
 	@echo ======================================================================
@@ -243,6 +237,7 @@ TESTS=\
     ratelimit/ratelimit.test \
     noiseutil/noise.test \
     sharded_ohtable/sharded_ohtable.test \
+    halfsiphash/halfsiphash.test \
 ##TESTS
 
 

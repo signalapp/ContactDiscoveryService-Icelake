@@ -1,0 +1,177 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+param int cROUNDS = 2;
+param int dROUNDS = 4;
+
+inline
+fn ROTL(reg u32 x, inline int b) -> reg u32
+{
+  reg u32 sl sr;
+  sl = x;
+  sl <<= b;
+  sr = x;
+  sr >>= (32 - b);
+  sr |= sl;
+  return sr;
+}
+
+inline
+fn U32T08_LE(reg u64 r, reg u32 v) -> reg u64
+{
+  reg u64 v64;
+  r &= 0xFFFFFFFF00000000;
+  v64 = (64u)v;
+  r |= v64;
+  return r;
+}
+
+inline
+fn U32T08_LE_mem(reg uptr p, reg u32 v)
+{
+  [:u8 p + 0] = (8u)v;
+  v >>= 8;
+  [:u8 p + 1] = (8u)v;
+  v >>= 8;
+  [:u8 p + 2] = (8u)v;
+  v >>= 8;
+  [:u8 p + 3] = (8u)v;
+}
+
+inline
+fn U8T032_LE(reg uptr p) -> reg u32
+{
+  reg u32 c1 c2;
+  c1 = (32u)([:u8 p + 0]);
+  c2 = (32u)([:u8 p + 1]);
+  c2 <<= 8;
+  c1 |= c2;
+  c2 = (32u)([:u8 p + 2]);
+  c2 <<= 16;
+  c1 |= c2;
+  c2 = (32u)([:u8 p + 3]);
+  c2 <<= 24;
+  c1 |= c2;
+  return c1;
+}
+
+inline
+fn SIPROUND(reg u32 v0 v1 v2 v3) -> reg u32, reg u32, reg u32, reg u32
+{
+  v0 += v1;
+  v1 = ROTL(v1, 5);
+  v1 ^= v0;
+  v0 = ROTL(v0, 16);
+  v2 += v3;
+  v3 = ROTL(v3, 8);
+  v3 ^= v2;
+  v0 += v3;
+  v3 = ROTL(v3, 7);
+  v3 ^= v0;
+  v2 += v1;
+  v1 = ROTL(v1, 13);
+  v1 ^= v2;
+  v2 = ROTL(v2, 16);
+  return v0, v1, v2, v3;
+}
+
+inline
+fn halfsiphash_mem(
+  reg uptr in,
+  reg u64 inlen,
+  reg uptr k out,
+  reg u64 outlen
+) -> reg u32
+{
+  reg uptr ni kk end;
+  reg u64 t64;
+  reg u32 v0 v1 v2 v3 k0 k1 m b left t32 r;
+  inline int i;
+
+  ni = in;
+  kk = k;
+  v0 = 0;
+  v1 = 0;
+  v2 = 0x6c796765;
+  v3 = 0x74656462;
+  k0 = U8T032_LE(kk);
+  kk += 4;
+  k1 = U8T032_LE(kk);
+
+  end = ni;
+  end += inlen;
+  left = (32u)inlen;
+  left &= 3; // equivalent to mod sizeof(uint32)
+  t64 = (64u)left;
+  end -= t64;
+
+  b = (32u)inlen;
+  b <<= 24;
+  v3 ^= k1;
+  v2 ^= k0;
+  v1 ^= k1;
+  v0 ^= k0;
+
+  if (outlen == 8) {
+    v1 ^= 0xee;
+  }
+
+  while (ni != end) {
+    m = U8T032_LE(ni);
+    v3 ^= m;
+    for i = 0 to cROUNDS {
+      v0, v1, v2, v3 = SIPROUND(v0, v1, v2, v3);
+    }
+    v0 ^= m;
+    ni += 4;
+  }
+
+  if (left >= 3) {
+    t32 = (32u)[:u8 ni + 2];
+    t32 <<= 16;
+    b |= t32;
+  }
+  if (left >= 2) {
+    t32 = (32u)[:u8 ni + 1];
+    t32 <<= 8;
+    b |= t32;
+  }
+  if (left >= 1) {
+    t32 = (32u)[:u8 ni + 0];
+    b |= t32;
+  }
+
+  v3 ^= b;
+
+  for i = 0 to cROUNDS {
+    v0, v1, v2, v3 = SIPROUND(v0, v1, v2, v3);
+  }
+  v0 ^= b;
+
+  if (outlen == 8) {
+    v2 ^= 0xee;
+  } else {
+    v2 ^= 0xff;
+  }
+
+  for i = 0 to dROUNDS {
+    v0, v1, v2, v3 = SIPROUND(v0, v1, v2, v3);
+  }
+
+  b = v1;
+  b ^= v3;
+  U32T08_LE_mem(out, b);
+
+  r = 0;
+  if (outlen != 4) {
+    v1 ^= 0xdd;
+    for i = 0 to dROUNDS {
+      v0, v1, v2, v3 = SIPROUND(v0, v1, v2, v3);
+    }
+    b = v1;
+    b ^= v3;
+    out += 4;
+    U32T08_LE_mem(out, b);
+  }
+  return r;
+}

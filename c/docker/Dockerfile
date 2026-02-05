@@ -8,24 +8,35 @@ COPY apt.conf sources.list /etc/apt/
 RUN mkdir /src && \
     apt-get update && \
     apt-get -y install \
-    gpg \
-    gnupg2 \
-    wget \
-    software-properties-common \
-    libssl-dev \
-    gdb \
-    libprotobuf32 \
-    openjdk-17-jdk-headless \
-    libtool \
-    bison \
-    automake \
-    flex \
-    libcurl4 \
-    afl++ \
-    afl++-clang \
-    valgrind \
-    pkg-config \
-    xz-utils
+        gpg \
+        gnupg2 \
+        wget \
+        software-properties-common \
+        libssl-dev \
+        gdb \
+        libprotobuf32 \
+        openjdk-17-jdk-headless \
+        libtool \
+        bison \
+        automake \
+        flex \
+        libcurl4 \
+        afl++ \
+        afl++-clang \
+        valgrind \
+        pkg-config \
+        xz-utils \
+        opam \
+        build-essential \
+        m4 \
+        unzip \
+        bubblewrap \
+        python3-distutils \
+        libgmp-dev \
+        libpcre3-dev \
+        libmpfr-dev \
+        libppl-dev \
+        autoconf
 
 RUN apt-get -y install pipx pip python3-venv
 ENV PIPX_HOME=/opt/pipx
@@ -57,6 +68,21 @@ RUN cd /tmp && \
 ENV PATH="/opt/openenclave/bin:/opt/clang/bin:${PATH}"
 ENV JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
 ENV PKG_CONFIG_PATH="$PKG_CONFIG_PATH:/opt/openenclave/share/pkgconfig"
+
+# Install Jasmin via OPAM
+ARG UID=1000
+ARG GID=1000
+RUN groupadd -g $GID signal && \
+    useradd -m -u $UID -g $GID signal
+USER signal
+WORKDIR /home/signal
+
+ENV OPAMYES=1
+ENV OPAMJOBS=2
+RUN opam init -y --disable-sandboxing -c ocaml-base-compiler.4.12.0 && \
+    eval $(opam env) && \
+    opam install -y jasmin.2025.06.1
+ENV PATH="/home/signal/.opam/ocaml-base-compiler.4.12.0/bin:${PATH}"
 
 WORKDIR /src
 

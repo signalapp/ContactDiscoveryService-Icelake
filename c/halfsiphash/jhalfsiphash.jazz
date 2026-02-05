@@ -1,0 +1,19 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+type uptr = u64;
+require "halfsiphash.jinc"
+
+export
+fn halfsiphash(
+  reg uptr in,
+  reg u64 inlen,
+  reg uptr k out,
+  reg u64 outlen
+) -> reg u32
+{
+  reg u32 r;
+  _ = #init_msf();
+  r = halfsiphash_mem(in, inlen, k, out, outlen);
+  return r;
+}

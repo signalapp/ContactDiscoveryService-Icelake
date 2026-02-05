@@ -1,4 +1,6 @@
-BASEDIR=$(abspath $(shell dirname $(lastword $(MAKEFILE_LIST))))
+# Evaluate BASEDIR immediately so it refers to the project C root ('c/')
+# and does not change when additional makefiles are included later.
+BASEDIR:=$(abspath $(shell dirname $(lastword $(MAKEFILE_LIST))))
 
 SHELL=/bin/bash -o pipefail  # needed for pipefail
 OE_DIR ?= /opt/openenclave
@@ -20,7 +22,7 @@ BASE_CFLAGS=\
   -fPIC \
   -Ibuild \
   -I$(BASEDIR)/noise-c/include \
-  -I$(BASEDIR)/SipHash \
+  -I$(BASEDIR)/halfsiphash \
   -I$(JAVA_HOME)/include \
   -I$(JAVA_HOME)/include/linux \
   -iquote $(BASEDIR) \
@@ -102,3 +104,19 @@ AFL_LDFLAGS= \
   -lm \
   $(shell pkg-config oehost-clang --libs) \
 ##AFL_LDFLAGS
+
+### Jasmin toolchain ###
+
+JASMINC ?= jasminc
+JASMIN_CT ?= jasmin-ct
+
+# Common flags used when invoking jasmin tools
+JASMIN_FLAGS= \
+##JASMIN_FLAGS
+JASMIN_CT_FLAGS= \
+  --infer \
+##JASMIN_CT_FLAGS
+JASMIN_SCT_FLAGS= \
+  --infer \
+  --sct \
+##JASMIN_SCT_FLAGS

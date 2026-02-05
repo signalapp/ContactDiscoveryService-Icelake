@@ -1,21 +1,40 @@
 include ../Makefile.base
 
+jazz_%.s: %.jazz
+	$(JASMIN_CT) $(JASMIN_CT_FLAGS) $<
+	$(JASMIN_CT) $(JASMIN_SCT_FLAGS) $<
+	$(JASMINC) $(JASMIN_FLAGS) -o $@ $<
+
+jazztest_%.s: %.jazz
+	$(JASMIN_CT) $(JASMIN_CT_FLAGS) $<
+	$(JASMIN_CT) $(JASMIN_SCT_FLAGS) $<
+	$(JASMINC) $(JASMIN_FLAGS) -g -o $@ $<
+
 trusted_%.o: %.c ../*/*.h
 	$(TRUSTED_CC) -c -o $@ $< $(TRUSTED_CFLAGS) $(WARNING_CFLAGS)
 
-libtrusted.a: $(patsubst %.c,trusted_%.o,$(wildcard *.c))
+trusted_jazz_%.o: jazz_%.s
+	$(TRUSTED_CC) -c -o $@ $< $(TRUSTED_CFLAGS)
+
+libtrusted.a: $(patsubst %.c,trusted_%.o,$(wildcard *.c)) $(patsubst %.jazz,trusted_jazz_%.o,$(wildcard *.jazz))
 	ar rcs $@ $^
 
 untrusted_%.o: %.c ../*/*.h
 	$(UNTRUSTED_CC) -c -o $@ $< $(UNTRUSTED_CFLAGS) $(WARNING_CFLAGS)
 
-libuntrusted.a: $(patsubst %.c,untrusted_%.o,$(wildcard *.c))
+untrusted_jazz_%.o: jazz_%.s
+	$(UNTRUSTED_CC) -c -o $@ $< $(UNTRUSTED_CFLAGS)
+
+libuntrusted.a: $(patsubst %.c,untrusted_%.o,$(wildcard *.c)) $(patsubst %.jazz,untrusted_jazz_%.o,$(wildcard *.jazz))
 	ar rcs $@ $^
 
 test_%.o: %.c ../*/*.h
 	$(TEST_CC) -c -o $@ $< $(TEST_CFLAGS) $(WARNING_CFLAGS)
 
-libtest.a: $(patsubst %.c,test_%.o,$(wildcard *.c))
+test_jazz_%.o: jazztest_%.s
+	$(TEST_CC) -c -o $@ $< $(TEST_CFLAGS)
+
+libtest.a: $(patsubst %.c,test_%.o,$(wildcard *.c)) $(patsubst %.jazz,test_jazz_%.o,$(wildcard *.jazz))
 	ar rcs $@ $^
 
 testmain_%.o: tests/%.c ../*/*.h
@@ -27,8 +46,12 @@ libtest_%.a: testmain_%.o
 afl_%.o: %.c ../*/*.h
 	$(AFL_CC) -c -o $@ $< $(AFL_CFLAGS) $(WARNING_CFLAGS)
 
-libafl.a: $(patsubst %.c,afl_%.o,$(wildcard *.c))
+afl_jazz_%.o: jazztest_%.s
+	$(AFL_CC) -c -o $@ $< $(AFL_CFLAGS)
+	
+
+libafl.a: $(patsubst %.c,afl_%.o,$(wildcard *.c)) $(patsubst %.jazz,afl_jazz_%.o,$(wildcard *.jazz))
 	ar rcs $@ $^
 
 clean:
-	rm -f *.o *.a *.test *.test.out *.test.valgrind
+	rm -f *.o *.a *.test *.test.out *.test.valgrind *.s
