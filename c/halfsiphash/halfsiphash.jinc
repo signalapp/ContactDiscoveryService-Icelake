@@ -4,30 +4,9 @@
 param int cROUNDS = 2;
 param int dROUNDS = 4;
 
+// Requires p..p+3 writable; stores v little-endian at p
 inline
-fn ROTL(reg u32 x, inline int b) -> reg u32
-{
-  reg u32 sl sr;
-  sl = x;
-  sl <<= b;
-  sr = x;
-  sr >>= (32 - b);
-  sr |= sl;
-  return sr;
-}
-
-inline
-fn U32T08_LE(reg u64 r, reg u32 v) -> reg u64
-{
-  reg u64 v64;
-  r &= 0xFFFFFFFF00000000;
-  v64 = (64u)v;
-  r |= v64;
-  return r;
-}
-
-inline
-fn U32T08_LE_mem(reg uptr p, reg u32 v)
+fn U32T08_LE(reg uptr p, reg u32 v)
 {
   [:u8 p + 0] = (8u)v;
   v >>= 8;
@@ -41,37 +20,37 @@ fn U32T08_LE_mem(reg uptr p, reg u32 v)
 inline
 fn U8T032_LE(reg uptr p) -> reg u32
 {
-  reg u32 c1 c2;
-  c1 = (32u)([:u8 p + 0]);
-  c2 = (32u)([:u8 p + 1]);
-  c2 <<= 8;
-  c1 |= c2;
-  c2 = (32u)([:u8 p + 2]);
-  c2 <<= 16;
-  c1 |= c2;
-  c2 = (32u)([:u8 p + 3]);
-  c2 <<= 24;
-  c1 |= c2;
-  return c1;
+  reg u32 accumulator tmp;
+  accumulator = (32u)([:u8 p + 0]);
+  tmp = (32u)([:u8 p + 1]);
+  tmp <<= 8;
+  accumulator |= tmp;
+  tmp = (32u)([:u8 p + 2]);
+  tmp <<= 16;
+  accumulator |= tmp;
+  tmp = (32u)([:u8 p + 3]);
+  tmp <<= 24;
+  accumulator |= tmp;
+  return accumulator;
 }
 
 inline
 fn SIPROUND(reg u32 v0 v1 v2 v3) -> reg u32, reg u32, reg u32, reg u32
 {
   v0 += v1;
-  v1 = ROTL(v1, 5);
+  v1 <<r= 5;
   v1 ^= v0;
-  v0 = ROTL(v0, 16);
+  v0 <<r= 16;
   v2 += v3;
-  v3 = ROTL(v3, 8);
+  v3 <<r= 8;
   v3 ^= v2;
   v0 += v3;
-  v3 = ROTL(v3, 7);
+  v3 <<r= 7;
   v3 ^= v0;
   v2 += v1;
-  v1 = ROTL(v1, 13);
+  v1 <<r= 13;
   v1 ^= v2;
-  v2 = ROTL(v2, 16);
+  v2 <<r= 16;
   return v0, v1, v2, v3;
 }
 
@@ -160,7 +139,7 @@ fn halfsiphash_mem(
 
   b = v1;
   b ^= v3;
-  U32T08_LE_mem(out, b);
+  U32T08_LE(out, b);
 
   r = 0;
   if (outlen != 4) {
@@ -171,7 +150,7 @@ fn halfsiphash_mem(
     b = v1;
     b ^= v3;
     out += 4;
-    U32T08_LE_mem(out, b);
+    U32T08_LE(out, b);
   }
   return r;
 }
