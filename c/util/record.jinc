@@ -1,0 +1,78 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// record.jinc: Record-level oblivious copy operations
+//
+// RECORD_SIZE is the number of u64 values in a CDS record (key + data).
+// This is a project-wide constant shared by ohtable and sharded_ohtable.
+param int RECORD_SIZE = 7;
+
+inline
+fn _cond_obv_cpy_u64_src_stack(
+  reg u8 cond,
+  reg uptr dest,
+  reg ptr u64[RECORD_SIZE] src,
+  inline int i
+)
+{
+  reg u64 a b tmp;
+  a = [:u64 dest];
+  b = src[:u64 i];
+  tmp = _ternary(cond, b, a);
+  [:u64 dest] = tmp;
+}
+
+inline
+fn _cond_obv_cpy_u64_dst_stack(
+  reg u8 cond,
+  reg ptr u64[RECORD_SIZE] dest,
+  reg uptr src,
+  inline int i
+) -> reg ptr u64[RECORD_SIZE]
+{
+  reg u64 a b tmp;
+  a = dest[:u64 i];
+  b = [:u64 src];
+  tmp = _ternary(cond, b, a);
+  dest[:u64 i] = tmp;
+  return dest;
+}
+
+inline
+fn cond_copy_record(reg u8 cond, reg uptr dst src)
+{
+  inline int j;
+  for j = 0 to RECORD_SIZE
+  {
+    _cond_obv_cpy_u64(cond, dst, src);
+    dst = #LEA(dst + 8);
+    src = #LEA(src + 8);
+  }
+}
+
+inline
+fn cond_copy_record_dst_stack(
+  reg u8 cond, reg ptr u64[RECORD_SIZE] dst, reg uptr src
+) -> reg ptr u64[RECORD_SIZE]
+{
+  inline int j;
+  for j = 0 to RECORD_SIZE
+  {
+    dst = _cond_obv_cpy_u64_dst_stack(cond, dst, src, j);
+    src = #LEA(src + 8);
+  }
+  return dst;
+}
+
+inline
+fn cond_copy_record_src_stack(
+  reg u8 cond, reg uptr dst, reg ptr u64[RECORD_SIZE] src
+)
+{
+  inline int j;
+  for j = 0 to RECORD_SIZE
+  {
+    _cond_obv_cpy_u64_src_stack(cond, dst, src, j);
+    dst = #LEA(dst + 8);
+  }
+}

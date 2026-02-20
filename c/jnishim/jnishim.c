@@ -7,6 +7,7 @@
 #include <pthread.h>
 #include <stdatomic.h>
 #include <stdint.h>
+#include <limits.h>
 #include "untrust/cds_u.h"
 #include "util/util.h"
 
@@ -21,10 +22,12 @@ typedef struct {
 } cdsi_enclave_t;
 
 // Utility function to shrink a java NIO Buffer.
+// JNI signature expects an int; cast and clamp size_t to jint to avoid varargs mismatch.
 static void limit_buffer(JNIEnv* env, jobject buffer, size_t limit) {
   jclass cls = (*env)->GetObjectClass(env, buffer);
   jmethodID mid = (*env)->GetMethodID(env, cls, "limit", "(I)Ljava/nio/Buffer;");
-  (*env)->CallObjectMethod(env, buffer, mid, limit);
+  jint jlimit = (limit > INT_MAX) ? INT_MAX : (jint)limit;
+  (*env)->CallObjectMethod(env, buffer, mid, jlimit);
 }
 
 // Utility function to throw error_t error.

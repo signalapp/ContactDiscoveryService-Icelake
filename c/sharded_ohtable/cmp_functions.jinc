@@ -1,0 +1,177 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// Oblivious comparators for batchable_request records.
+//
+// Each comparator defines a strict weak ordering: it returns 1 if lhs
+// should sort after rhs, 0 otherwise.  The ordering is irreflexive
+// (cmp(x,x)=0), asymmetric (cmp(x,y)=1 ⇒ cmp(y,x)=0), and
+// transitive — as required by the odd-even merge sort.  In fact each
+// ordering is total, since the compared field tuples uniquely determine
+// sort position (ties in cmp_shard_flag_key are broken by the dedup
+// pass, not by the comparator).
+//
+// All comparisons are constant-time — no branches on data.
+//
+// Multi-field lexicographic comparison is built from least-significant
+// to most-significant field using this accumulation pattern:
+//
+//   result  = least_significant_gt
+//   result &= next_field_eq;  result |= next_field_gt
+//   ...
+//   result &= most_significant_eq;  result |= most_significant_gt
+//
+// Each "gate-and-merge" step says: the lower-priority result only
+// matters when the higher-priority field is equal; otherwise the
+// higher-priority field comparison wins outright.
+
+// ── field accessors ────────────────────────────────────────────────
+
+inline fn shard_id_from(reg uptr p) -> reg u64 {
+  reg u64 v;
+  v = [:u64 p + 8 * BatchableRequest::SHARD_ID];
+  return v;
+}
+
+inline fn flag_from(reg uptr p) -> reg u64 {
+  reg u64 v;
+  v = [:u64 p + 8 * BatchableRequest::FLAG];
+  return v;
+}
+
+inline fn key_from(reg uptr p) -> reg u64 {
+  reg u64 v;
+  v = [:u64 p + 8 * BatchableRequest::RECORD];
+  return v;
+}
+
+inline fn orig_pos_from(reg uptr p) -> reg u64 {
+  reg u64 v;
+  v = [:u64 p + 8 * BatchableRequest::ORIG_POSITION];
+  return v;
+}
+
+// -- comparison primitives on pre-loaded values --------
+
+inline fn _u64_eq(reg u64 l r) -> reg u8 {
+  reg u8 v; reg bool b;
+  b = l == r; v = #SETcc(b);
+  return v;
+}
+
+inline fn _u64_gt(reg u64 l r) -> reg u8 {
+  reg u8 v; reg bool b;
+  b = l > r; v = #SETcc(b);
+  return v;
+}
+
+inline fn _u64_lt(reg u64 l r) -> reg u8 {
+  reg u8 v; reg bool b;
+  b = l < r; v = #SETcc(b);
+  return v;
+}
+
+// ── comparators ────────────────────────────────────────────────────
+// Each comparator reuses `l` and `r` per field step to minimize
+// register pressure (these inline into osort's inner loop).
+
+// Sort order: key ascending (key=0 last), flag ascending.
+//
+// Used by Extract to merge shard responses (flag=0) with client
+// requests (flag=1).  Within each key group, responses sort before
+// requests so the extraction pass can copy found data into matching
+// client request slots.  Records with key=0 are empty placeholders
+// and sort to the end.
+inline
+fn cmp_key_flag(reg uptr lhs rhs) -> reg u8
+{
+  reg u64 l r;
+  reg u8 result t;
+
+  // --- secondary: flag (ascending) ---
+  l = flag_from(lhs);
+  r = flag_from(rhs);
+  result = _u64_gt(l, r);
+
+  // --- primary: key (ascending, key=0 last) ---
+  l = key_from(lhs);
+  r = key_from(rhs);
+  // wrapping decrement maps key=0 → UINT64_MAX, pushing empty records last
+  l -= 1;
+  r -= 1;
+  t = _u64_eq(l, r);   result &= t;
+  t = _u64_gt(l, r);   result |= t;
+
+  return result;
+}
+
+// Sort order: shard_id ascending, flag ascending, key ascending.
+//
+// Used by Query to group requests by shard.  Within each shard, real
+// requests (flag=0) sort before dummy padding (flag=1), and duplicates
+// are adjacent for single-pass dedup.
+inline
+fn cmp_shard_flag_key(reg uptr lhs rhs) -> reg u8
+{
+  reg u64 l r;
+  reg u8 result t;
+
+  // --- tertiary: key (ascending) ---
+  l = key_from(lhs);
+  r = key_from(rhs);
+  result = _u64_gt(l, r);
+
+  // --- secondary: flag (ascending) ---
+  l = flag_from(lhs);
+  r = flag_from(rhs);
+  t = _u64_eq(l, r);   result &= t;
+  t = _u64_gt(l, r);   result |= t;
+
+  // --- primary: shard_id (ascending) ---
+  l = shard_id_from(lhs);
+  r = shard_id_from(rhs);
+  t = _u64_eq(l, r);   result &= t;
+  t = _u64_gt(l, r);   result |= t;
+
+  return result;
+}
+
+// Sort order: shard_id ascending, flag ascending, key ascending,
+// orig_position descending (last-inserted first).
+//
+// Used by Insert.  Like cmp_shard_flag_key but with a stability
+// tiebreaker: among records with the same (shard, flag, key), the
+// one with the largest orig_position (most recently inserted) sorts
+// first.  After dedup discards later duplicates, this ensures the
+// last insert for a given key is the one that takes effect.
+inline
+fn cmp_stable_shard_flag_key(reg uptr lhs rhs) -> reg u8
+{
+  reg u64 l r;
+  reg u8 result t;
+
+  // --- quaternary: orig_position (descending) ---
+  l = orig_pos_from(lhs);
+  r = orig_pos_from(rhs);
+  result = _u64_lt(l, r);
+
+  // --- tertiary: key (ascending) ---
+  l = key_from(lhs);
+  r = key_from(rhs);
+  t = _u64_eq(l, r);   result &= t;
+  t = _u64_gt(l, r);   result |= t;
+
+  // --- secondary: flag (ascending) ---
+  l = flag_from(lhs);
+  r = flag_from(rhs);
+  t = _u64_eq(l, r);   result &= t;
+  t = _u64_gt(l, r);   result |= t;
+
+  // --- primary: shard_id (ascending) ---
+  l = shard_id_from(lhs);
+  r = shard_id_from(rhs);
+  t = _u64_eq(l, r);   result &= t;
+  t = _u64_gt(l, r);   result |= t;
+
+  return result;
+}

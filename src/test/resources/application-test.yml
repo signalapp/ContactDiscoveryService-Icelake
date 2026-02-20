@@ -10,7 +10,7 @@ enclave:
   enclaveId: test
   availableEpcMemory: 3200000
   loadFactor: 1.6
-  shards: 3
+  shards: 16  # must match Jasmin test/params.jinc NUM_SHARDS
   token-secret: supersecretsquirrel
   simulated: true
   return-acis-without-uaks: true

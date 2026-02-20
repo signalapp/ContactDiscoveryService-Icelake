@@ -17,6 +17,11 @@
 
 typedef struct shard shard;
 
+// Jasmin-exported layout functions (source of truth for struct shard layout)
+// Note: Jasmin only accesses lb, ub fields
+extern size_t shard_lb_offset_jazz(void);
+extern size_t shard_ub_offset_jazz(void);
+
 typedef enum
 {
     shard_request_unknown,
@@ -87,21 +92,22 @@ bool shard_contains(const shard *shard, u64 key);
  * @brief Add a record to a shard.
  *
  * @param shard shard to hold record
- * @param record record to insert.  Must live longer than the request.
+ * @param records records to insert.  Must live longer than the request.
+ * @param num_records number of records to insert.
  * @return async request.  Call shard_wait() before using.
  */
-sharded_ohtable_request* shard_insert(shard *shard, const u64 *record, size_t num_records);
+sharded_ohtable_request* shard_insert(shard *shard, u64 *records, size_t num_records);
 
 /**
  * @brief Check the table to see if a record is present for a given key.
  *
  * @param shard shard to query
- * @param key key to lookup.  Must live longer than the request.
- * @param response where to put the response for this query (must match
- *        backing ohtable's record size).  Must live longer than the request.
+ * @param records Records have keys set, fields zeroed on input. Records that are found will be
+ *        populated on return.  Records must match backing ohtable's record size.
+ *          Must live longer than the request.
  * @return async request.  Call shard_wait() before using.
  */
-sharded_ohtable_request* shard_query(shard *shard, const u64 *key, u64* response, size_t num_queries);
+sharded_ohtable_request* shard_query(shard *shard, u64* records, size_t num_queries);
 
 /**
  * @brief Wait synchronously for all previously submitted requests to complete.
@@ -123,13 +129,13 @@ void shard_request_destroy(sharded_ohtable_request *r);
  */
 error_t shard_request_error(sharded_ohtable_request* r);
 
-/** @brief Get the response out of a finished request.
+/** @brief Get the response records out of a finished request.
  *
  * Must call shard_wait before this.
  *
  * @param r
  */
-u64* shard_request_response(sharded_ohtable_request* r);
+u64* shard_request_records(sharded_ohtable_request* r);
 
 /**
  * @brief  Listens to a request queue for inserts and queries and processses them.

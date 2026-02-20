@@ -1,0 +1,294 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+from UTIL require "types.jinc"
+require "sharded_ohtable.jinc"
+
+// Expose Jasmin-compiled NUM_SHARDS for runtime validation in C
+export fn sharded_ohtable_num_shards_const_jazz() -> reg u64 {
+  reg u64 r;
+  r = (64u)NUM_SHARDS;
+  return r;
+}
+
+// ---- struct shard layout validators ----
+
+// size_t shard_lb_offset_jazz(void)
+export fn shard_lb_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = Shard::LB * 8;
+  return r;
+}
+
+// size_t shard_ub_offset_jazz(void)
+export fn shard_ub_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = Shard::UB * 8;
+  return r;
+}
+
+// ---- struct sharded_ohtable_request layout validators ----
+
+// size_t shard_request_records_offset_jazz(void)
+export fn shard_request_records_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = Shard::RECORDS * 8;
+  return r;
+}
+
+// size_t shard_request_error_offset_jazz(void)
+export fn shard_request_error_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = Shard::ERROR * 8;
+  return r;
+}
+
+// ---- struct sharded_ohtable layout validators ----
+
+// size_t sharded_ohtable_sizeof_jazz(void)
+export fn sharded_ohtable_sizeof_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::SHARDED_OHTABLE_NUM_U64S * 8;
+  return r;
+}
+
+// size_t sharded_ohtable_shards_offset_jazz(void)
+export fn sharded_ohtable_shards_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::SHARDS * 8;
+  return r;
+}
+
+// size_t sharded_ohtable_hash_key_offset_jazz(void)
+export fn sharded_ohtable_hash_key_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::HASH_KEY * 8;
+  return r;
+}
+
+// size_t sharded_ohtable_ct_divisor_step_offset_jazz(void)
+export fn sharded_ohtable_ct_divisor_step_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::CT_DIVISOR_STEP * 8;
+  return r;
+}
+
+// size_t sharded_ohtable_ct_div_m_prime_offset_jazz(void)
+export fn sharded_ohtable_ct_div_m_prime_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::CT_DIV_M_PRIME * 8;
+  return r;
+}
+
+// size_t sharded_ohtable_ct_div_shift1_offset_jazz(void)
+export fn sharded_ohtable_ct_div_shift1_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::CT_DIV_SHIFT1 * 8;
+  return r;
+}
+
+// size_t sharded_ohtable_ct_div_shift2_offset_jazz(void)
+export fn sharded_ohtable_ct_div_shift2_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::CT_DIV_SHIFT2 * 8;
+  return r;
+}
+
+// ---- struct batchable_request layout validators ----
+
+// size_t batchable_request_shard_id_offset_jazz(void)
+export fn batchable_request_shard_id_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::BatchableRequest::SHARD_ID * 8;
+  return r;
+}
+
+// size_t batchable_request_flag_offset_jazz(void)
+export fn batchable_request_flag_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::BatchableRequest::FLAG * 8;
+  return r;
+}
+
+// size_t batchable_request_found_offset_jazz(void)
+export fn batchable_request_found_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::BatchableRequest::FOUND * 8;
+  return r;
+}
+
+// size_t batchable_request_client_id_offset_jazz(void)
+export fn batchable_request_client_id_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::BatchableRequest::CLIENT_ID * 8;
+  return r;
+}
+
+// size_t batchable_request_orig_position_offset_jazz(void)
+export fn batchable_request_orig_position_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::BatchableRequest::ORIG_POSITION * 8;
+  return r;
+}
+
+// size_t batchable_request_record_offset_jazz(void)
+export fn batchable_request_record_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::BatchableRequest::RECORD * 8;
+  return r;
+}
+
+// size_t batchable_request_block_size_jazz(void)
+export fn batchable_request_block_size_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::BatchableRequest::BLOCK_SIZE;
+  return r;
+}
+
+// ---- struct shard_batched_queries layout validators ----
+
+// size_t shard_batched_queries_sizeof_jazz(void)
+export fn shard_batched_queries_sizeof_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::ShardBatchedQueries::SHARD_BATCHED_QUERIES_NUM_U64S * 8;
+  return r;
+}
+
+// size_t shard_batched_queries_batch_size_offset_jazz(void)
+export fn shard_batched_queries_batch_size_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::ShardBatchedQueries::BATCH_SIZE * 8;
+  return r;
+}
+
+// size_t shard_batched_queries_num_shards_offset_jazz(void)
+export fn shard_batched_queries_num_shards_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::ShardBatchedQueries::NUM_SHARDS * 8;
+  return r;
+}
+
+// size_t shard_batched_queries_num_client_requests_offset_jazz(void)
+export fn shard_batched_queries_num_client_requests_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::ShardBatchedQueries::NUM_CLIENT_REQUESTS * 8;
+  return r;
+}
+
+// size_t shard_batched_queries_records_offset_jazz(void)
+export fn shard_batched_queries_records_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::ShardBatchedQueries::RECORDS * 8;
+  return r;
+}
+
+// size_t shard_batched_queries_shard_requests_offset_jazz(void)
+export fn shard_batched_queries_shard_requests_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::ShardBatchedQueries::SHARD_REQUESTS * 8;
+  return r;
+}
+
+// size_t shard_batched_queries_client_requests_offset_jazz(void)
+export fn shard_batched_queries_client_requests_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = ShardedOHTable::ShardBatchedQueries::CLIENT_REQUESTS * 8;
+  return r;
+}
+
+// ---- algorithmic exports ----
+
+// size_t calculate_batch_size(const sharded_ohtable *table, size_t num_queries, batchable_request requests[])
+export
+fn calculate_batch_size(
+  reg uptr table,
+  reg u64 num_queries,
+  reg uptr requests
+) -> reg u64
+{
+  reg u64 r;
+  #msf reg u64 msf;
+
+  table = table;
+  num_queries = num_queries;
+  requests = requests;
+
+  msf = #init_msf();
+  r = ShardedOHTable::calculate_batch_size(table, num_queries, requests, msf);
+  return r;
+}
+
+// void prepare_query_batches_query(const sharded_ohtable *table, size_t num_queries,
+//   void *all_requests, size_t b, shard_batched_queries *result, size_t *distances)
+export
+fn prepare_query_batches_query(
+  reg uptr table,
+  reg u64 num_queries,
+  reg uptr all_requests,
+  reg u64 b,
+  reg uptr result distances
+)
+{
+  #msf reg u64 msf;
+
+  table = table;
+  num_queries = num_queries;
+  all_requests = all_requests;
+  b = b;
+  result = result;
+  distances = distances;
+
+  msf = #init_msf();
+  ShardedOHTable::Query::prepare_query_batches(
+    table, num_queries, all_requests, b, result, distances, msf);
+}
+
+// void prepare_query_batches_insert(const sharded_ohtable *table, size_t num_queries,
+//   void *all_requests, size_t b, shard_batched_queries *result, size_t *distances)
+export
+fn prepare_query_batches_insert(
+  reg uptr table,
+  reg u64 num_queries,
+  reg uptr all_requests,
+  reg u64 b,
+  reg uptr result distances
+)
+{
+  #msf reg u64 msf;
+
+  table = table;
+  num_queries = num_queries;
+  all_requests = all_requests;
+  b = b;
+  result = result;
+  distances = distances;
+
+  msf = #init_msf();
+  ShardedOHTable::Insert::prepare_query_batches(
+    table, num_queries, all_requests, b, result, distances, msf);
+}
+
+// error_t extract_results_from_batch_jazz(shard_batched_queries *sbq, u64 results[],
+//   u8 *all_requests, size_t n, size_t *distances)
+// NOTE: keeps _jazz suffix to avoid collision with C public API extract_results_from_batch()
+export
+fn extract_results_from_batch_jazz(
+  reg uptr sbq results all_requests,
+  reg u64 n,
+  reg uptr distances
+) -> reg u32
+{
+  #msf reg u64 msf;
+  reg u32 err;
+
+  sbq = sbq;
+  results = results;
+  all_requests = all_requests;
+  n = n;
+  distances = distances;
+
+  msf = #init_msf();
+  err = ShardedOHTable::Extract::extract_results_from_batch(
+    sbq, results, all_requests, n, distances, msf);
+  return err;
+}

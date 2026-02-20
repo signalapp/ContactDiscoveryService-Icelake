@@ -37,7 +37,8 @@ void *shard_thread_func(void *input)
     return 0;
 }
 
-#define NUM_SHARDS 15
+// Must match Jasmin test/params.jinc NUM_SHARDS
+#define NUM_SHARDS 3
 
 #define RECORDS_TO_INSERT 100
 #define RECORD_SIZE_QWORDS 7

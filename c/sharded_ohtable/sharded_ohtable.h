@@ -9,6 +9,15 @@
 
 typedef struct sharded_ohtable sharded_ohtable;
 
+// Jasmin-exported layout functions (source of truth for struct sharded_ohtable layout)
+extern size_t sharded_ohtable_sizeof_jazz(void);
+extern size_t sharded_ohtable_shards_offset_jazz(void);
+extern size_t sharded_ohtable_hash_key_offset_jazz(void);
+extern size_t sharded_ohtable_ct_divisor_step_offset_jazz(void);
+extern size_t sharded_ohtable_ct_div_m_prime_offset_jazz(void);
+extern size_t sharded_ohtable_ct_div_shift1_offset_jazz(void);
+extern size_t sharded_ohtable_ct_div_shift2_offset_jazz(void);
+
 /**
  * @brief Uses available memory to create sharded oblivious hashtable.
  * 

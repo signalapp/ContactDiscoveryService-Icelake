@@ -2,12 +2,15 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 
 #include <inttypes.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <pthread.h>
 #include "ohtable/ohtable.h"
 #include "shard.h"
 #include "util/util.h"
 
+// struct shard layout - Jasmin only accesses lb, ub fields.
+// Jasmin is the source of truth; validated at runtime by shard_validate_layout().
 struct shard
 {
     u64 lb;
@@ -17,6 +20,18 @@ struct shard
     ohtable *table;
     queue *requests;
 };
+
+// Validate C layout matches Jasmin. Called at startup.
+extern size_t shard_lb_offset_jazz(void);
+extern size_t shard_ub_offset_jazz(void);
+extern size_t shard_request_records_offset_jazz(void);
+extern size_t shard_request_error_offset_jazz(void);
+
+__attribute__((constructor))
+static void shard_validate_layout(void) {
+    CHECK(offsetof(shard, lb) == shard_lb_offset_jazz());
+    CHECK(offsetof(shard, ub) == shard_ub_offset_jazz());
+}
 
 typedef struct {
     // Thread-safe waiting for this request to complete.
@@ -31,10 +46,9 @@ struct sharded_ohtable_request
 {
     // Request type
     sharded_ohtable_request_type type;
-    // Pointer to (not-owned) memory containing the request
-    const u64 *request;
-    // Pointer to (not-owned) memory containing the response
-    u64* response;
+    // Pointer to (not-owned) memory containing the request/response records.
+    // Request records have id field populated, everything else zero
+    u64 *records;
     // Any error that occurred during the execution of this request
     error_t err;
     // If non-NULL, complete this waiter.
@@ -43,8 +57,15 @@ struct sharded_ohtable_request
     size_t batch_size;
 };
 
+__attribute__((constructor))
+static void sharded_ohtable_request_validate_layout(void) {
+    CHECK(offsetof(struct sharded_ohtable_request, records) == shard_request_records_offset_jazz());
+    CHECK(offsetof(struct sharded_ohtable_request, err) == shard_request_error_offset_jazz());
+}
+
+
 error_t shard_request_error(sharded_ohtable_request* r) { return r->err; }
-u64* shard_request_response(sharded_ohtable_request* r) { return r->response; }
+u64* shard_request_records(sharded_ohtable_request* r) { return r->records; }
 
 void shard_add_zero_record(shard *shard)
 {
@@ -96,13 +117,12 @@ static shard_request_waiter* shard_waiter_create() {
     return w;
 }
 
-static sharded_ohtable_request *shard_request_create(sharded_ohtable_request_type type, const u64 *data, u64* response, shard_request_waiter* w, size_t batch_size)
+static sharded_ohtable_request *shard_request_create(sharded_ohtable_request_type type, u64 *records, shard_request_waiter* w, size_t batch_size)
 {
     sharded_ohtable_request *r;
     CHECK(r = calloc(1, sizeof(*r)));
     r->type = type;
-    r->request = data;
-    r->response = response;
+    r->records = records;
     r->wait = w;
     r->batch_size = batch_size;
     return r;
@@ -132,7 +152,7 @@ static void shard_request_waiter_wait(shard_request_waiter* w) {
 void shard_wait(shard* shard)
 {
     shard_request_waiter* w = shard_waiter_create();
-    sharded_ohtable_request *r = shard_request_create(shard_request_wait, NULL, NULL, w, 0);
+    sharded_ohtable_request *r = shard_request_create(shard_request_wait, NULL, w, 0);
     CHECK(err_SUCCESS == queue_add_item(shard->requests, r));
     shard_request_waiter_wait(w);
     shard_waiter_destroy(w);
@@ -174,7 +194,7 @@ ohtable_statistics* shard_report_ohtable_statisitics(shard* shard) {
 
 sharded_ohtable_request* shard_clear(shard *shard)
 {
-    sharded_ohtable_request *r = shard_request_create(shard_request_clear, NULL, NULL, NULL, 0);
+    sharded_ohtable_request *r = shard_request_create(shard_request_clear, NULL, NULL, 0);
     CHECK(err_SUCCESS == queue_add_item(shard->requests, r));
     return r;
 }
@@ -206,16 +226,16 @@ static sharded_ohtable_request *shard_next_request(shard *shard)
     return (sharded_ohtable_request *)queue_next_item(shard->requests, true);
 }
 
-sharded_ohtable_request* shard_insert(shard *shard, const u64 *record, size_t num_records)
+sharded_ohtable_request* shard_insert(shard *shard, u64 *records, size_t num_records)
 {
-    sharded_ohtable_request *r = shard_request_create(shard_request_insert, record, NULL, NULL, num_records);
+    sharded_ohtable_request *r = shard_request_create(shard_request_insert, records, NULL, num_records);
     CHECK(err_SUCCESS == queue_add_item(shard->requests, r));
     return r;
 }
 
-sharded_ohtable_request* shard_query(shard *shard, const u64 *key, u64* response, size_t num_queries)
+sharded_ohtable_request* shard_query(shard *shard, u64 *records, size_t num_queries)
 {
-    sharded_ohtable_request *r = shard_request_create(shard_request_query, key, response, NULL, num_queries);
+    sharded_ohtable_request *r = shard_request_create(shard_request_query, records, NULL, num_queries);
     CHECK(err_SUCCESS == queue_add_item(shard->requests, r));
     return r;
 }
@@ -226,16 +246,15 @@ void shard_handle_request(shard *shard, sharded_ohtable_request *req)
     switch (req->type)
     {
     case shard_request_insert:
-        CHECK(req->request);
+        CHECK(req->records);
         for (size_t i = 0; i < req->batch_size; i++) {
-          if (err_SUCCESS != (req->err = ohtable_put(shard->table, req->request + shard->record_size_qwords * i))) break;
+          if (err_SUCCESS != (req->err = ohtable_put(shard->table, req->records + shard->record_size_qwords * i))) break;
         }
         break;
     case shard_request_query:
-        CHECK(req->request);
-        CHECK(req->response);
+        CHECK(req->records);
         for (size_t i = 0; i < req->batch_size; i++) {
-          if (err_SUCCESS != (req->err = ohtable_get(shard->table, req->request[i], req->response + shard->record_size_qwords * i))) break;
+          if (err_SUCCESS != (req->err = ohtable_get(shard->table, req->records[shard->record_size_qwords * i], req->records + shard->record_size_qwords * i))) break;
         }
         break;
     case shard_request_stop:
@@ -267,7 +286,7 @@ void shard_stop(shard *shard)
 {
     shard->keep_alive = 0;
     shard_request_waiter* w = shard_waiter_create();
-    sharded_ohtable_request *req = shard_request_create(shard_request_stop, NULL, NULL, w, 0);
+    sharded_ohtable_request *req = shard_request_create(shard_request_stop, NULL, w, 0);
     CHECK(err_SUCCESS == queue_add_item(shard->requests, req));
     shard_request_waiter_wait(w);
     shard_waiter_destroy(w);
@@ -286,8 +305,7 @@ void shard_stop(shard *shard)
 #define RECORD_SIZE_QWORDS 7
 
 static u64 mt_insert_records[RECORD_SIZE_QWORDS * RECORDS_TO_INSERT];
-static u64 mt_queries[RECORDS_TO_INSERT];
-static u64 mt_responses[RECORD_SIZE_QWORDS * RECORDS_TO_INSERT];
+static u64 mt_request_records[RECORD_SIZE_QWORDS * RECORDS_TO_INSERT];
 static sharded_ohtable_request* mt_requests[RECORDS_TO_INSERT];
 
 static void* consumer_mt(void* v_shard) {
@@ -333,14 +351,14 @@ int test_shard_receives_queries_mt()
     pthread_t cons_tid;
     pthread_create(&cons_tid, NULL, consumer_mt, shard);
 
-    memset(mt_queries, 0, RECORDS_TO_INSERT * 8);
+    memset(mt_request_records, 0, RECORDS_TO_INSERT * RECORD_SIZE_QWORDS * 8);
     for (size_t i = 0; i < RECORDS_TO_INSERT; ++i)
     {
-        mt_queries[RECORD_SIZE_QWORDS * i] = i+1;
+        mt_request_records[RECORD_SIZE_QWORDS * i] = i+1;
     }
 
     for (int i = 0; i < RECORDS_TO_INSERT; i++) {
-        mt_requests[i] = shard_query(shard, mt_queries + i, mt_responses + i*RECORD_SIZE_QWORDS, 1);
+        mt_requests[i] = shard_query(shard, mt_request_records + i*RECORD_SIZE_QWORDS, 1);
     }
 
     shard_wait(shard);
@@ -362,19 +380,18 @@ int test_shard_handle_request()
 
     // first try the query and see that it isn't there
     {
-      u64 query_data[1] = {1234};
-      u64 response[RECORD_SIZE_QWORDS];
-      sharded_ohtable_request* query_req = shard_request_create(shard_request_query, query_data, response, NULL, 1);
+      u64 query_data[RECORD_SIZE_QWORDS] = {1234, 0, 0, 0, 0, 0, 0};
+      sharded_ohtable_request* query_req = shard_request_create(shard_request_query, query_data, NULL, 1);
       shard_handle_request(shard, query_req);
       TEST_ERR(query_req->err);
-      TEST_ASSERT(response[0] == UINT64_MAX);
+      TEST_ASSERT(query_data[0] == UINT64_MAX);
       shard_request_destroy(query_req);
     }
 
     u64 insert_record[RECORD_SIZE_QWORDS] = {1234, 1, 2, 3, 4, 5, 6};
     // then insert and get response
     {
-      sharded_ohtable_request* insert_req = shard_request_create(shard_request_insert, insert_record, NULL, NULL, 1);
+      sharded_ohtable_request* insert_req = shard_request_create(shard_request_insert, insert_record, NULL, 1);
       shard_handle_request(shard, insert_req);
       TEST_ERR(insert_req->err);
       shard_request_destroy(insert_req);
@@ -382,13 +399,11 @@ int test_shard_handle_request()
 
     // then query again and confirm it is there
     {
-      u64 query_data[1] = {1234};
-      u64 response[RECORD_SIZE_QWORDS];
-      sharded_ohtable_request* query_req = shard_request_create(shard_request_query, query_data, response, NULL, 1);
+      u64 query_data[RECORD_SIZE_QWORDS] = {1234, 0, 0, 0, 0, 0, 0};
+      sharded_ohtable_request* query_req = shard_request_create(shard_request_query, query_data, NULL, 1);
       shard_handle_request(shard, query_req);
       TEST_ERR(query_req->err);
-      TEST_ASSERT(sizeof(insert_record) == sizeof(response));
-      TEST_ASSERT(0 == memcmp(response, insert_record, sizeof(insert_record)));
+      TEST_ASSERT(0 == memcmp(query_data, insert_record, sizeof(insert_record)));
       shard_request_destroy(query_req);
     }
 

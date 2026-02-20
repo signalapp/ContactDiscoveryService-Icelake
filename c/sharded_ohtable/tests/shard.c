@@ -14,7 +14,6 @@
 #define RECORD_SIZE_QWORDS 7
 
 static u64 mt_insert_records[RECORD_SIZE_QWORDS * RECORDS_TO_INSERT];
-static u64 mt_queries[RECORDS_TO_INSERT];
 static sharded_ohtable_request* mt_requests[RECORDS_TO_INSERT];
 static u64 mt_responses[RECORD_SIZE_QWORDS * RECORDS_TO_INSERT];
 
@@ -33,28 +32,27 @@ int test_shard_request_response()
     pthread_create(&tid, 0, worker, (void *)shard);
 
     u64 *record = calloc(RECORD_SIZE_QWORDS, sizeof(*record));
-    u64 *query_data = calloc(1, sizeof(*query_data));
-    *query_data = 1234;
+    u64 query_data = 1234;
     memset(record, 0, RECORD_SIZE_QWORDS * sizeof(*record));
-    record[0] = *query_data;
+    record[0] = query_data;
 
-    u64 output[RECORD_SIZE_QWORDS];
-
-    sharded_ohtable_request* req = shard_query(shard, query_data, output, 1);
+    sharded_ohtable_request* req = shard_query(shard, record, 1);
     shard_wait(shard);
 
-    TEST_ASSERT(shard_request_response(req)[0] == UINT64_MAX);
+    TEST_ASSERT(shard_request_records(req)[0] == UINT64_MAX);
     shard_request_destroy(req);
+
+    memset(record, 0, RECORD_SIZE_QWORDS * sizeof(*record));
+    record[0] = query_data;
 
     req = shard_insert(shard, record, 1);
     shard_wait(shard);
-    TEST_ASSERT(shard_request_response(req) == 0);
     shard_request_destroy(req);
 
-    req = shard_query(shard, query_data, output, 1);
+    req = shard_query(shard, record, 1);
     shard_wait(shard);
 
-    TEST_ASSERT(shard_request_response(req)[0] == *query_data);
+    TEST_ASSERT(shard_request_records(req)[0] == query_data);
     shard_request_destroy(req);
 
     // clear the shard
@@ -63,10 +61,10 @@ int test_shard_request_response()
     shard_request_destroy(req);
 
     // check that the record no longer there
-    req = shard_query(shard, query_data, output, 1);
+    req = shard_query(shard, record, 1);
     shard_wait(shard);
 
-    TEST_ASSERT(shard_request_response(req)[0] == UINT64_MAX);
+    TEST_ASSERT(shard_request_records(req)[0] == UINT64_MAX);
     shard_request_destroy(req);
 
     shard_stop(shard);
@@ -74,7 +72,6 @@ int test_shard_request_response()
     void *worker_retval;
     pthread_join(tid, &worker_retval);
     free(worker_retval);
-    free(query_data);
     free(record);
     shard_destroy(shard);
     return err_SUCCESS;
@@ -98,23 +95,22 @@ int test_shard_load()
     }
     shard_wait(shard);
     for (size_t i = 0; i < RECORDS_TO_INSERT; i++) {
-        TEST_ASSERT(shard_request_response(mt_requests[i]) == 0);
         shard_request_destroy(mt_requests[i]);
     }
-    memset(mt_queries, 0, sizeof(mt_queries));
+    memset(mt_responses, 0, sizeof(mt_responses));
     for (size_t i = 0; i < RECORDS_TO_INSERT; ++i)
     {
-        mt_queries[i] = i;
+        mt_responses[i*RECORD_SIZE_QWORDS] = i;
     }
 
     for (size_t i = 0; i < RECORDS_TO_INSERT; i++) {
         mt_requests[i] = shard_query(
-            shard, mt_queries + i, mt_responses + i*RECORD_SIZE_QWORDS, 1);
+            shard, mt_responses + i*RECORD_SIZE_QWORDS, 1);
     }
     shard_wait(shard);
     for (size_t i = 0; i < RECORDS_TO_INSERT; i++) {
-        TEST_ASSERT(shard_request_response(mt_requests[i]) != 0);
-        TEST_ASSERT(shard_request_response(mt_requests[i])[0] == i);
+        TEST_ASSERT(shard_request_records(mt_requests[i]) != 0);
+        TEST_ASSERT(shard_request_records(mt_requests[i])[0] == i);
         shard_request_destroy(mt_requests[i]);
     }
 

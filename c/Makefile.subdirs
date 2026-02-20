@@ -1,14 +1,14 @@
 include ../Makefile.base
 
 jazz_%.s: %.jazz
-	$(JASMIN_CT) $(JASMIN_CT_FLAGS) $<
-	$(JASMIN_CT) $(JASMIN_SCT_FLAGS) $<
-	$(JASMINC) $(JASMIN_FLAGS) -o $@ $<
+	$(JASMIN_CT) $(JASMIN_PROD_FLAGS) $(JASMIN_CT_FLAGS) $<
+	$(JASMIN_CT) $(JASMIN_PROD_FLAGS) $(JASMIN_SCT_FLAGS) $<
+	$(JASMINC)   $(JASMIN_PROD_FLAGS) $(JASMIN_FLAGS) -o $@ $<
 
 jazztest_%.s: %.jazz
-	$(JASMIN_CT) $(JASMIN_CT_FLAGS) $<
-	$(JASMIN_CT) $(JASMIN_SCT_FLAGS) $<
-	$(JASMINC) $(JASMIN_FLAGS) -g -o $@ $<
+	$(JASMIN_CT) $(JASMIN_TEST_FLAGS) $(JASMIN_CT_FLAGS) $<
+	$(JASMIN_CT) $(JASMIN_TEST_FLAGS) $(JASMIN_SCT_FLAGS) $<
+	$(JASMINC)   $(JASMIN_TEST_FLAGS) $(JASMIN_FLAGS) -g -o $@ $<
 
 trusted_%.o: %.c ../*/*.h
 	$(TRUSTED_CC) -c -o $@ $< $(TRUSTED_CFLAGS) $(WARNING_CFLAGS)

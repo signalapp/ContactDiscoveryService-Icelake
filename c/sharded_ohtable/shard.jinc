@@ -1,0 +1,47 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+namespace Shard {
+// struct shard field indices (in u64 units) - only first 2 fields accessed by Jasmin
+param int LB = 0;
+param int UB = 1;
+
+// sharded_ohtable_requests indices
+param int RECORDS = 1;
+param int ERROR = 2;
+
+inline
+fn contains(reg uptr shard, reg u64 key) -> reg u8
+{
+  reg u64 bound;
+  reg u8 c0 c1;
+  reg bool b;
+
+  bound = [:u64 shard + 8 * LB];
+  b = bound <= key;
+  c0 = #SETcc(b);
+  bound = [:u64 shard + 8 * UB];
+  b = key < bound;
+  c1 = #SETcc(b);
+  c0 &= c1;
+  return c0;
+}
+
+inline
+fn request_records(reg uptr r, #msf reg u64 msf) -> reg uptr, #msf reg u64
+{
+  reg u64 records;
+  #declassify records = [:u64 r + 8 * RECORDS];
+  records = #protect(records, msf);
+  return records, msf;
+}
+
+inline
+fn request_error(reg uptr r, #msf reg u64 msf) -> reg u32, #msf reg u64
+{
+  reg u32 err;
+  #declassify err = [:u32 r + 8 * ERROR];
+  err = #protect_32(err, msf);
+  return err, msf;
+}
+} // namespace Shard

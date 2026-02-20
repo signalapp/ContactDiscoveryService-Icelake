@@ -1,0 +1,324 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+from SOENV require "params.jinc"
+from UTIL require "util.jinc"
+from UTIL require "record.jinc"
+from UTIL require "error.jinc"
+from SIPHASH require "halfsiphash.jinc"
+require "shard.jinc"
+
+namespace ShardedOHTable {
+// struct sharded_ohtable field indices (in u64 units)
+// Note: indices 0-1 (num_shards, record_size_qwords) are C-only
+param int SHARDS = 2;
+param int HASH_KEY = 3;
+param int CT_DIVISOR_STEP = 4;
+param int CT_DIV_M_PRIME = 5;
+param int CT_DIV_SHIFT1 = 6;
+param int CT_DIV_SHIFT2 = 7;
+param int SHARDED_OHTABLE_NUM_U64S = 8;
+
+// pointers
+inline
+fn shards_ptr(
+  reg uptr table,
+  #msf reg u64 msf
+) -> reg uptr, #msf reg u64
+{
+  reg uptr p;
+  #declassify p = [:u64 table + SHARDS * 8];
+  p = #protect(p, msf);
+  return p, msf;
+}
+
+namespace BatchableRequest {
+// struct batchable_request field indices (in u64 units)
+param int SHARD_ID = 0;
+param int FLAG = 1;
+param int FOUND = 2;
+param int CLIENT_ID = 3;
+param int ORIG_POSITION = 4;
+param int RECORD = 5;
+param int BATCHABLE_REQUEST_NUM_U64S = 5; // excluding flexible array member
+
+// block size equals to size of batchable_request
+// which is 5 u64 values plus the size of a record
+// which is 7 u64 values. (5 + 7) * 8 = 96 bytes
+param int BLOCK_SIZE = 96;
+} // namespace BatchableRequest
+
+namespace ShardBatchedQueries {
+// struct shard_batched_queries field indices (in u64 units)
+param int BATCH_SIZE = 0;
+param int NUM_SHARDS = 1;
+param int NUM_CLIENT_REQUESTS = 2;
+param int RECORDS = 3;
+param int SHARD_REQUESTS = 4;
+param int CLIENT_REQUESTS = 5;
+param int SHARD_BATCHED_QUERIES_NUM_U64S = 6;
+
+// pointers
+inline
+fn batch_size(
+  reg uptr sbq,
+  #msf reg u64 msf
+) -> reg u64, #msf reg u64
+{
+  reg uptr p;
+  #declassify p = [:u64 sbq + BATCH_SIZE * 8];
+  p = #protect(p, msf);
+  return p, msf;
+}
+
+inline
+fn num_client_requests(
+  reg uptr sbq,
+  #msf reg u64 msf
+) -> reg u64, #msf reg u64
+{
+  reg uptr p;
+  #declassify p = [:u64 sbq + NUM_CLIENT_REQUESTS * 8];
+  p = #protect(p, msf);
+  return p, msf;
+}
+
+inline
+fn records_ptr(
+  reg uptr sbq,
+  #msf reg u64 msf
+) -> reg uptr, #msf reg u64
+{
+  reg uptr p;
+  #declassify p = [:u64 sbq + RECORDS * 8];
+  p = #protect(p, msf);
+  return p, msf;
+}
+
+inline
+fn shard_requests_ptr(
+  reg uptr sbq,
+  #msf reg u64 msf
+) -> reg uptr, #msf reg u64
+{
+  reg uptr p;
+  #declassify p = [:u64 sbq + SHARD_REQUESTS * 8];
+  p = #protect(p, msf);
+  return p, msf;
+}
+
+inline
+fn client_requests_ptr(
+  reg uptr sbq,
+  #msf reg u64 msf
+) -> reg uptr, #msf reg u64
+{
+  reg uptr p;
+  #declassify p = [:u64 sbq + CLIENT_REQUESTS * 8];
+  p = #protect(p, msf);
+  return p, msf;
+}
+} // namespace ShardBatchedQueries
+
+inline
+fn khash(
+  reg uptr t k,
+  #msf reg u64 msf
+) -> reg u64, #msf reg u64
+{
+  reg uptr hash_key;
+  reg u64 hash;
+  hash_key = #LEA(t + 8 * HASH_KEY);
+  hash, msf = _halfsiphash_u64(k, hash_key, msf);
+  return hash, msf;
+}
+
+inline
+fn calculate_batch_size(
+  reg uptr table,
+  reg u64 num_queries,
+  reg uptr requests,
+  #msf reg u64 msf
+) -> reg u64
+{
+  stack u64[NUM_SHARDS] batch_sizes_s;
+  reg ptr u64[NUM_SHARDS] batch_sizes;
+  // standard variables
+  reg u64 batch_size hashed_key;
+  // pointer variables
+  reg uptr req obj_key shards shards_sh;
+  // temporary variables
+  reg u64 tmp ct_div_m_prime ct_div_shift1 ct_div_shift2;
+  // iterator variables
+  reg u64 i;
+  inline int sh;
+  // boolean variables
+  reg u8 cond;
+  reg bool b;
+
+  batch_sizes = batch_sizes_s;
+  for sh = 0 to NUM_SHARDS { batch_sizes[sh] = 0; }
+  // compute shard_id for all requests
+  _, _, _, _, _, i = #set0();
+  req = requests;
+  while {b = i < num_queries; } (b) {
+    msf = #update_msf(b, msf);
+    obj_key = #LEA(req + 8 * BatchableRequest::RECORD);
+    () = #spill(num_queries);
+    hashed_key, msf = khash(table, obj_key, msf);
+    () = #unspill(num_queries);
+    ct_div_m_prime = [:u64 table + 8 * CT_DIV_M_PRIME];
+    ct_div_shift1 = [:u64 table + 8 * CT_DIV_SHIFT1];
+    ct_div_shift2 = [:u64 table + 8 * CT_DIV_SHIFT2];
+    [:u64 req + 8 * BatchableRequest::SHARD_ID] = _ct_div(hashed_key, ct_div_m_prime, ct_div_shift1, ct_div_shift2);
+    [:u64 req + 8 * BatchableRequest::FLAG] = 0;
+
+    shards, msf = shards_ptr(table, msf);
+    for sh = 0 to NUM_SHARDS
+    {
+      #declassify shards_sh = [:u64 shards + sh * 8];
+      shards_sh = #protect(shards_sh, msf);
+      cond = Shard::contains(shards_sh, hashed_key);
+      tmp = (64u)cond;
+      batch_sizes[sh] += tmp;
+    }
+
+    req = #LEA(req + BatchableRequest::BLOCK_SIZE);
+    i = #LEA(i + 1);
+  }
+  msf = #update_msf(!b, msf);
+
+  // determine the maximum number of requests contained in any single shard
+  _, _, _, _, _, batch_size = #set0();
+  for sh = 0 to NUM_SHARDS
+  {
+    b = batch_size < batch_sizes[sh];
+    cond = #SETcc(b);
+    batch_size = _ternary(cond, batch_sizes[sh], batch_size);
+  }
+  return batch_size;
+}
+
+// definitions for osort and ocompact. They are the same
+// for all cases
+require "cmp_functions.jinc"
+param int BLOCK_SIZE = BatchableRequest::BLOCK_SIZE;
+
+inline
+fn flag_is_set(reg uptr data) -> reg u8
+{
+  reg u8 cond;
+  reg bool b;
+  b = [:u8 data + 8 * BatchableRequest::FLAG] != 0;
+  cond = #SETcc(b);
+  return cond;
+}
+
+inline
+fn pred_function(reg uptr data) -> reg u8
+{
+  reg u8 cond;
+  cond = flag_is_set(data);
+  return cond;
+}
+
+inline
+fn oblv_cond_swap(reg u8 cond, reg uptr a b)
+{
+  inline int i;
+  for i = 0 to BatchableRequest::BLOCK_SIZE / (8 * 4)
+  {
+    _cond_obv_swap_u256(cond, a, b);
+    a += 32;
+    b += 32;
+  }
+}
+
+// Following there are three namespaces. Their purpose is to isolate
+// the comparison functions used in osort, so that we can define in a
+// single file multiple osort comparison functions without redefinition
+// issues.
+namespace Query {
+  // define comparison function for query
+  inline
+  fn cmp_function(reg uptr a b) -> reg u8
+  {
+    reg u8 cond;
+    cond = cmp_shard_flag_key(a, b);
+    return cond;
+  }
+
+  from UTIL require "osort.jinc"
+  from UTIL require "ocompact.jinc"
+  require "prepare_query_batches.jinc"
+
+  inline
+  fn prepare_query_batches(
+    reg uptr table,
+    reg u64 num_queries,
+    reg uptr all_requests,
+    reg u64 b,
+    reg uptr result distances,
+    #msf reg u64 msf
+  )
+  {
+    _prepare_query_batches(table, num_queries, all_requests, b, result, distances, msf);
+  }
+} // namespace Query
+
+namespace Insert {
+  // define comparison function for insert
+  inline
+  fn cmp_function(reg uptr a b) -> reg u8
+  {
+    reg u8 cond;
+    cond = cmp_stable_shard_flag_key(a, b);
+    return cond;
+  }
+
+  from UTIL require "osort.jinc"
+  from UTIL require "ocompact.jinc"
+  require "prepare_query_batches.jinc"
+
+  inline
+  fn prepare_query_batches(
+    reg uptr table,
+    reg u64 num_queries,
+    reg uptr all_requests,
+    reg u64 b,
+    reg uptr result distances,
+    #msf reg u64 msf
+  )
+  {
+    _prepare_query_batches(table, num_queries, all_requests, b, result, distances, msf);
+  }
+} // namespace Insert
+
+namespace Extract {
+  // define comparison function for extract results
+  inline
+  fn cmp_function(reg uptr a b) -> reg u8
+  {
+    reg u8 cond;
+    cond = cmp_key_flag(a, b);
+    return cond;
+  }
+
+  from UTIL require "osort.jinc"
+  from UTIL require "ocompact.jinc"
+  require "extract_results_from_batch.jinc"
+
+  inline
+  fn extract_results_from_batch(
+    reg uptr sbq results all_requests,
+    reg u64 n,
+    reg uptr distances,
+    #msf reg u64 msf
+  ) -> reg u32
+  {
+    reg u32 err;
+    err = _extract_results_from_batch(sbq, results, all_requests, n, distances, msf);
+    return err;
+  }
+} // namespace Extract
+} // namespace ShardedOHTable

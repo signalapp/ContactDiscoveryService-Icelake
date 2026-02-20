@@ -17,3 +17,16 @@ fn halfsiphash(
   r = halfsiphash_mem(in, inlen, k, out, outlen);
   return r;
 }
+
+export
+fn halfsiphash_u64(
+  reg uptr in,
+  reg uptr k
+) -> reg u64
+{
+  #msf reg u64 msf;
+  reg u64 r;
+  msf = #init_msf();
+  r, msf = _halfsiphash_u64(in, k, msf);
+  return r;
+}

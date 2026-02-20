@@ -42,7 +42,7 @@ class EnclaveTest {
 
   private Enclave enclave;
 
-  private static final int SHARD_COUNT = 8;
+  private static final int SHARD_COUNT = 16;
 
   @BeforeEach
   void setUp() throws EnclaveException, IOException {

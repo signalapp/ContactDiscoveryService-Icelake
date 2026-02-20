@@ -110,6 +110,13 @@ AFL_LDFLAGS= \
 JASMINC ?= jasminc
 JASMIN_CT ?= jasmin-ct
 
+JASMIN_TEST_FLAGS=\
+  -I SOENV=../jasmin.test.soenv \
+##JASMIN_TEST_FLAGS
+JASMIN_PROD_FLAGS=\
+  -I SOENV=../jasmin.prod.soenv \
+##JASMIN_PROD_FLAGS
+
 # Common flags used when invoking jasmin tools
 JASMIN_FLAGS= \
   -I UTIL=$(BASEDIR)/util/ \

@@ -1,0 +1,192 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+from UTIL require "error.jinc"
+
+inline
+fn _extract_results_from_batch(
+  reg uptr sbq results all_requests,
+  reg u64 n,
+  reg uptr distances,
+  #msf reg u64 msf
+) -> reg u32
+{
+  // common variables
+  #mmx reg u64 msf_mmx;
+  reg uptr req;
+  reg u64 num_client_requests i t64;
+  reg u32 err;
+  reg bool b;
+  inline int j;
+
+  () = #spill(results);
+  // STEP 1: merge together the client requests and the shard responses.
+  // variables for this step:
+  reg u256 t256;
+  reg uptr client_requests shard_requests sot_req response record;
+  reg u64 batch_size bound r;
+  inline int sh;
+
+  // copy the empty client requests into the workspace and set their flags to be 1.
+  num_client_requests, msf = ShardBatchedQueries::num_client_requests(sbq, msf);
+  bound = num_client_requests;
+  bound *= (BatchableRequest::BLOCK_SIZE / 32);
+  client_requests, msf = ShardBatchedQueries::client_requests_ptr(sbq, msf);
+  _, _, _, _, _, i = #set0();
+  req = all_requests;
+  while { b = i < bound; } (b) {
+    msf = #update_msf(b, msf);
+    t256 = [:u256 client_requests];
+    [:u256 req] = t256;
+    req += 32;
+    client_requests += 32;
+    i += 1;
+  }
+  msf = #update_msf(!b, msf);
+
+  _, _, _, _, _, i = #set0();
+  req = all_requests;
+  while { b = i < num_client_requests; } (b) {
+    msf = #update_msf(b, msf);
+    [:u64 req + 8 * BatchableRequest::FLAG] = 1;
+    req += BatchableRequest::BLOCK_SIZE;
+    i += 1;
+  }
+  msf = #update_msf(!b, msf);
+
+  // for each response from a shard, copy it into a request object with flag 0
+  shard_requests, msf = ShardBatchedQueries::shard_requests_ptr(sbq, msf);
+  batch_size, msf = ShardBatchedQueries::batch_size(sbq, msf);
+  req = num_client_requests;
+  () = #spill(num_client_requests);
+  req *= BatchableRequest::BLOCK_SIZE;
+  req += all_requests;
+  for sh = 0 to NUM_SHARDS
+  {
+    #declassify sot_req = [:u64 shard_requests + sh * 8];
+    sot_req = #protect(sot_req, msf);
+    err, msf = Shard::request_error(sot_req, msf);
+    b = err == Error::SUCCESS;
+    if (b) {
+      msf = #update_msf(b, msf);
+      response, msf = Shard::request_records(sot_req, msf);
+      _, _, _, _, _, r = #set0();
+      while { b = r < batch_size; } (b) {
+        msf = #update_msf(b, msf);
+        [:u64 req + 8 * BatchableRequest::FLAG] = 0;
+        record = #LEA(req + 8 * BatchableRequest::RECORD);
+        for j = 0 to RECORD_SIZE
+        {
+          t64 = [:u64 response];
+          [:u64 record] = t64;
+          record = #LEA(record + 8);
+          response = #LEA(response + 8);
+        }
+        req += BatchableRequest::BLOCK_SIZE;
+        r += 1;
+      }
+      msf = #update_msf(!b, msf);
+    } else {
+      msf = #update_msf(!b, msf);
+    }
+  }
+  () = #spill(err);
+
+  // STEP 2: obliviously sort these requests by id then flag
+  reg u64 zero;
+  zero = 0;
+  // NOTE: osort uses Extract::cmp_function defined in sharded_ohtable.jinc,
+  // which in turn calls cmp_key_flag for the actual comparison
+  msf = osort(all_requests, zero, n, msf);
+
+  // STEP 3: pass through the array and copy record into the client requests.
+  // variables for this step:
+  reg uptr prev_req req_record;
+  reg u64 curr_record prev_record curr_flag;
+  reg u8 key_changed do_copy is_client_request;
+
+  reg ptr u64[RECORD_SIZE] current_record;
+  stack u64[RECORD_SIZE] current_record_s;
+  current_record = current_record_s;  // associate memory region to ptr
+
+  for j = 0 to RECORD_SIZE { current_record[j] = [:u64 all_requests + (BatchableRequest::RECORD + j) * 8]; }
+  prev_req = all_requests;
+  req = #LEA(all_requests + BatchableRequest::BLOCK_SIZE);
+  [:u64 all_requests + 8 * BatchableRequest::FOUND] = 0;
+  () = #spill(all_requests);
+  i = 1;
+  while { b = i < n; } (b) {
+    msf = #update_msf(b, msf);
+    msf_mmx = #mov_msf(msf);
+    // short-circuit OK, only depends on i
+    curr_record = [:u64 req + 8 * BatchableRequest::RECORD];
+    prev_record = [:u64 prev_req + 8 * BatchableRequest::RECORD];
+    b = curr_record != prev_record;
+    key_changed = #SETcc(b);
+
+    req_record = #LEA(req + 8 * BatchableRequest::RECORD);
+    current_record = cond_copy_record_dst_stack(key_changed, current_record, req_record);
+
+    key_changed = !key_changed;
+    b = curr_record == current_record[0];
+    do_copy = #SETcc(b);
+    key_changed &= do_copy;
+    b = current_record[0] != 0;
+    do_copy = #SETcc(b);
+    do_copy &= key_changed;
+
+    curr_flag = [:u64 req + 8 * BatchableRequest::FLAG];
+    b = curr_flag == 1;
+    is_client_request = #SETcc(b);
+    do_copy &= is_client_request; // is_client_request &
+                                  // (current_record[0] == req->record[0]) &
+                                  // (current_record[0] != 0) & !key_changed;
+    cond_copy_record_src_stack(do_copy, req_record, current_record);
+
+    t64 = (64u)do_copy;
+    [:u64 req + 8 * BatchableRequest::FOUND] = t64;
+
+    prev_req += BatchableRequest::BLOCK_SIZE;
+    req += BatchableRequest::BLOCK_SIZE;
+    i += 1;
+    msf = #mov_msf(msf_mmx);
+  }
+  msf = #update_msf(!b, msf);
+
+  // STEP 4: compact the array.
+  // variables for this step:
+  reg uptr result_records src dst;
+  reg u64 nil_key rec_key;
+  reg u8 found;
+
+  () = #unspill(all_requests);
+  all_requests = #protect(all_requests, msf);
+  msf = ocompact(all_requests, n, distances, msf);
+
+  () = #unspill(num_client_requests, results);
+  num_client_requests = #protect(num_client_requests, msf);
+  results = #protect(results, msf);
+  nil_key = -1;
+  _, _, _, _, _, i = #set0();
+  req = all_requests;
+  result_records = results;
+  while { b = i < num_client_requests; } (b) {
+    msf = #update_msf(b, msf);
+    found = [:u8 req + 8 * BatchableRequest::FOUND];
+    src = #LEA(req + 8 * BatchableRequest::RECORD);
+    dst = result_records;
+    cond_copy_record(found, dst, src);
+
+    rec_key = [:u64 result_records];
+    rec_key = _ternary(found, rec_key, nil_key);
+    [:u64 result_records] = rec_key;
+
+    result_records += RECORD_SIZE * 8;
+    req += BatchableRequest::BLOCK_SIZE;
+    i += 1;
+  }
+  msf = #update_msf(!b, msf);
+
+  () = #unspill(err);
+  return err;
+}

@@ -75,7 +75,29 @@ int siphash_test() {
     return err_SUCCESS;
 }
 
+// Verify halfsiphash_u64 (register return) matches halfsiphash_mem (memory return)
+// for the fixed 8-byte-in, 8-byte-out case.
+int siphash_u64_test() {
+    uint64_t out, reg_out;
+    uint8_t in[64], k[16];
+    int i;
+
+    for (i = 0; i < 16; ++i)
+        k[i] = i;
+
+    TEST_LOG("%s\n", labels[1]);  // HalfSipHash-2-4-64
+    for (i = 0; i < 64; ++i) {
+        in[i%8] = i;
+        halfsiphash(in, 8, k, (unsigned char *)&out, 8);
+        reg_out = halfsiphash_u64(in, k);
+        TEST_ASSERT(out == reg_out);
+    }
+
+    return err_SUCCESS;
+}
+
 int main(void) {
     RUN_TEST(siphash_test());
+    RUN_TEST(siphash_u64_test());
     return 0;
 }

@@ -154,3 +154,95 @@ fn halfsiphash_mem(
   }
   return r;
 }
+
+// Specialized halfsiphash for fixed 8-byte input, 8-byte output.
+// Returns result in a register instead of writing to memory.
+// Threads MSF for use in speculative-load-hardened call chains.
+//
+// halfsiphash_mem doesn't thread MSF — it was written for the C-callable export
+// where the token is discarded after LFENCE. Inside the MSF-hardened
+// sharded_ohtable paths, we need speculative load hardening to be continuous.
+// _halfsiphash_u64 provides this, and also eliminates the runtime branches on
+// inlen/outlen that are dead code for the fixed 8-in/8-out case.
+//
+// TODO: Consider MSF-hardening halfsiphash_mem instead. That's a
+// bigger change that affects the existing export, adds MSF overhead to all 7
+// branch points (most of which are dead for this use case), and still requires a
+// memory-to-register shim for the return value. Since this is not used deep on the
+// hot path the performance overhead may be negligible.
+inline
+fn _halfsiphash_u64(
+  reg uptr in k,
+  #msf reg u64 msf
+) -> reg u64, #msf reg u64
+{
+  reg u64 end retval;
+  reg u64 ni kk t64;
+  reg u32 v0 v1 v2 v3 k0 k1 m b;
+  reg bool cond;
+  inline int i;
+
+  ni = in;
+  kk = k;
+  v0 = 0;
+  v1 = 0;
+  v2 = 0x6c796765;
+  v3 = 0x74656462;
+  k0 = U8T032_LE(kk);
+  kk += 4;
+  k1 = U8T032_LE(kk);
+
+  end = #LEA(ni + 8);
+
+  b = (32u)8;
+  b <<= 24;
+  v3 ^= k1;
+  v2 ^= k0;
+  v1 ^= k1;
+  v0 ^= k0;
+
+  // outlen == 8
+  v1 ^= 0xee;
+
+  while { cond = ni != end; } (cond) {
+    msf = #update_msf(cond, msf);
+    m = U8T032_LE(ni);
+    v3 ^= m;
+    for i = 0 to cROUNDS {
+      v0, v1, v2, v3 = SIPROUND(v0, v1, v2, v3);
+    }
+    v0 ^= m;
+    ni += 4;
+  }
+  msf = #update_msf(!cond, msf);
+
+  v3 ^= b;
+
+  for i = 0 to cROUNDS {
+    v0, v1, v2, v3 = SIPROUND(v0, v1, v2, v3);
+  }
+  v0 ^= b;
+
+  // outlen == 8
+  v2 ^= 0xee;
+
+  for i = 0 to dROUNDS {
+    v0, v1, v2, v3 = SIPROUND(v0, v1, v2, v3);
+  }
+
+  b = v1;
+  b ^= v3;
+  retval = (64u)b;
+
+  v1 ^= 0xdd;
+  for i = 0 to dROUNDS {
+    v0, v1, v2, v3 = SIPROUND(v0, v1, v2, v3);
+  }
+  b = v1;
+  b ^= v3;
+  t64 = (64u)b;
+  t64 <<= 32;
+  retval |= t64;
+
+  return retval, msf;
+}

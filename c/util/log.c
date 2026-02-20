@@ -28,11 +28,12 @@ void log_init(JavaVM* vm) {
 
   jstring logger_name = (*env)->NewStringUTF(env, "org.signal.cdsi.enclave.Enclave.jni");
   jobject logger_local = (*env)->CallStaticObjectMethod(env, logger_factory_class, get_logger_method, logger_name);
-  (*env)->ReleaseStringUTFChars(env, logger_name, NULL);
+  (*env)->DeleteLocalRef(env, logger_name);
 
   CHECK(logger_local != NULL);
 
   logger = (*env)->NewGlobalRef(env, logger_local);
+  (*env)->DeleteLocalRef(env, logger_local);
 
   jclass logger_class = (*env)->FindClass(env, "org/slf4j/Logger");
   trace_method = (*env)->GetMethodID(env, logger_class, "trace", "(Ljava/lang/String;)V");
@@ -54,6 +55,7 @@ void log_shutdown() {
     CHECK(JNI_OK == (*jvm)->GetEnv(jvm, (void **)&env, JNI_VERSION_1_1));
 
     (*env)->DeleteGlobalRef(env, logger);
+    logger = NULL;
     jvm = NULL;
   }
 }
@@ -104,8 +106,8 @@ void slf4j_log(uint32_t level, const char* message) {
   }
 
   jstring log_message = (*env)->NewStringUTF(env, message);
-  (*env)->CallObjectMethod(env, logger, log_method, log_message);
-  (*env)->ReleaseStringUTFChars(env, log_message, NULL);
+  (*env)->CallVoidMethod(env, logger, log_method, log_message);
+  (*env)->DeleteLocalRef(env, log_message);
 
   if (should_detach_thread) {
     CHECK(JNI_OK == (*jvm)->DetachCurrentThread(jvm));

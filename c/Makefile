@@ -82,6 +82,7 @@ lib%_t.a: % | gentrustuntrust
 	cp -v $*/libtrusted.a ./lib$*_t.a
 
 lib%_u.a: % | gentrustuntrust
+	# Untrusted archives are C-only; no Jasmin is built for host-side code.
 	$(MAKE) -C $* -f ../Makefile.subdirs libuntrusted.a
 	cp -v $*/libuntrusted.a ./lib$*_u.a
 

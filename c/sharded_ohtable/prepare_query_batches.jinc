@@ -1,0 +1,171 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+inline
+fn _prepare_query_batches(
+  reg uptr table,
+  reg u64 num_queries,
+  reg uptr all_requests,
+  reg u64 b,
+  reg uptr result distances,
+  #msf reg u64 msf
+)
+{
+  // common variables
+  reg uptr req;
+  reg u64 n i t64 zero;
+  reg bool cond;
+  inline int shard;
+
+  // STEP 1: assign requests to shards
+  // variables for this step
+  reg u64 obj_key hashed_key ct_div_m_prime ct_div_shift1 ct_div_shift2;
+
+  n = b;
+  n *= NUM_SHARDS;
+  n += num_queries;
+  () = #spill(result, b, distances);
+
+  _, _, _, _, _, i = #set0();
+  req = all_requests;
+  () = #spill(all_requests);
+  while { cond = i < num_queries; } (cond) {
+    msf = #update_msf(cond, msf);
+    obj_key = #LEA(req + 8 * BatchableRequest::RECORD);
+    hashed_key, msf = khash(table, obj_key, msf);
+    ct_div_m_prime = [:u64 table + 8 * CT_DIV_M_PRIME];
+    ct_div_shift1 = [:u64 table + 8 * CT_DIV_SHIFT1];
+    ct_div_shift2 = [:u64 table + 8 * CT_DIV_SHIFT2];
+    [:u64 req + 8 * BatchableRequest::SHARD_ID] = _ct_div(hashed_key, ct_div_m_prime, ct_div_shift1, ct_div_shift2);
+    [:u64 req + 8 * BatchableRequest::FLAG] = 0;
+
+    req += BatchableRequest::BLOCK_SIZE;
+    i += 1;
+  }
+  msf = #update_msf(!cond, msf);
+
+  // STEP 2: create the maximum number of dummy requests for each shard
+  // variables for this step
+  reg u64 r;
+
+  () = #unspill(all_requests);
+  all_requests = #protect(all_requests, msf);
+  req = num_queries;
+  req *= BatchableRequest::BLOCK_SIZE;
+  req += all_requests;
+  () = #spill(all_requests);
+  () = #unspill(b);
+  b = #protect(b, msf);
+  for shard = 0 to NUM_SHARDS {
+    _, _, _, _, _, r = #set0();
+    while { cond = r < b; } (cond) {
+      msf = #update_msf(cond, msf);
+      // calloc-ed so the record keys are all 0 - the dummy query
+      [:u64 req + 8 * BatchableRequest::SHARD_ID] = shard;
+      [:u64 req + 8 * BatchableRequest::FLAG] = 1;
+      // increment batchable request
+      req = #LEA(req + BatchableRequest::BLOCK_SIZE);
+      r += 1;
+    }
+    msf = #update_msf(!cond, msf);
+  }
+  () = #spill(b);
+
+  // STEP 3: sort the requests by shard, flag, then object_id
+  _, _, _, _, _, zero = #set0();
+  () = #unspill(all_requests);
+  // NOTE: osort uses the cmp_function of whichever namespace calls this code
+  // For queries, it uses Query::cmp_function (cmp_shard_flag_key)
+  // For inserts, it uses Insert::cmp_function (cmp_stable_shard_flag_key)
+  msf = osort(all_requests, zero, n, msf);
+
+  // STEP 4: set flags on queries to keep, then compact
+  // variables for this step
+  reg uptr first_request prev_req records;
+  reg u64 batch_counter sid_curr sid_prev rid_curr rid_prev;
+  reg u8 shard_change is_real_request duplicate_request keep_request;
+  inline int j;
+
+  () = #unspill(all_requests);
+  all_requests = #protect(all_requests, msf);
+  first_request = all_requests;
+  () = #spill(all_requests);
+  // keep the first request no matter what (it's the first in a batch)
+  [:u64 first_request + 8 * BatchableRequest::FLAG] = 1;
+  // either way, this batch has one item in it now
+  batch_counter = 1;
+
+  i = 1;
+  () = #unspill(all_requests);
+  all_requests = #protect(all_requests, msf);
+  req = #LEA(all_requests + BatchableRequest::BLOCK_SIZE);
+  prev_req = all_requests;
+  () = #spill(all_requests);
+  while { cond = i < n; } (cond) {
+    msf = #update_msf(cond, msf);
+    sid_curr = [:u64 req + 8 * BatchableRequest::SHARD_ID];
+    sid_prev = [:u64 prev_req + 8 * BatchableRequest::SHARD_ID];
+    cond = sid_curr != sid_prev;
+    shard_change = #SETcc(cond);
+
+    _, _, _, _, _, zero = #set0();
+    batch_counter = _ternary(shard_change, zero, batch_counter);
+
+    rid_curr = [:u64 req + 8 * BatchableRequest::RECORD];
+    rid_prev = [:u64 prev_req + 8 * BatchableRequest::RECORD];
+    cond = rid_curr != 0;
+    is_real_request = #SETcc(cond);
+
+    cond = rid_curr == rid_prev;
+    duplicate_request = #SETcc(cond);
+    duplicate_request &= is_real_request;
+
+    () = #unspill(b);
+    cond = batch_counter < b;
+    keep_request = #SETcc(cond);
+    duplicate_request = !duplicate_request;
+    keep_request &= duplicate_request;
+    keep_request |= shard_change;
+    t64 = (64u)keep_request;
+    [:u64 req + 8 * BatchableRequest::FLAG] = t64;
+
+    t64 = #LEA(batch_counter + 1);
+    batch_counter = _ternary(keep_request, t64, batch_counter);
+
+    req += BatchableRequest::BLOCK_SIZE;
+    prev_req += BatchableRequest::BLOCK_SIZE;
+    i += 1;
+  }
+  msf = #update_msf(!cond, msf);
+
+  () = #unspill(all_requests, distances);
+  all_requests = #protect(all_requests, msf);
+  distances = #protect(distances, msf);
+  msf = ocompact(all_requests, n, distances, msf);
+
+  // Now the first b*num_shards requests in all_requests are the batches,
+  // grouped by shards. Create the requests and send them to the shards.
+  req = #LEA(all_requests);
+  () = #unspill(result);
+  result = #protect(result, msf);
+  records, msf = ShardBatchedQueries::records_ptr(result, msf);
+  () = #spill(result);
+  () = #unspill(b);
+  b = #protect(b, msf);
+  for shard = 0 to NUM_SHARDS {
+    _, _, _, _, _, i = #set0();
+    while { cond = i < b; } (cond) {
+      msf = #update_msf(cond, msf);
+      for j = 0 to RECORD_SIZE
+      {
+        t64 = [:u64 req + 8 * (BatchableRequest::RECORD + j)];
+        [:u64 records] = t64;
+        records = #LEA(records + 8);
+      }
+      // increment batchable request
+      req = #LEA(req + BatchableRequest::BLOCK_SIZE);
+      i += 1;
+    }
+    msf = #update_msf(!cond, msf);
+  }
+}
