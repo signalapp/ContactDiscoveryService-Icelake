@@ -1,0 +1,34 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// Definitions for osort specific to ratelimit. These must be defined
+// before importing osort base from `osort.jinc`.
+// `ratelimit` sorts an array of u64 values in increasing order
+
+from UTIL require "util.jinc"
+
+// block size in bytes (64 bits = 8 bytes)
+param int BLOCK_SIZE = 8;
+
+// obliviously swap two u64 values if `cond` is true
+inline
+fn oblv_cond_swap(
+  reg u8 cond,
+  reg uptr a b
+)
+{
+  _cond_obv_swap_u64(cond, a, b);
+}
+
+// return 1 if *lhs > *rhs, else 0
+inline
+fn cmp_function(reg uptr lhs rhs) -> reg u8
+{
+  reg u64 a;
+  reg u8 r;
+  reg bool cond;
+  a = [:u64 lhs];
+  cond = a > [:u64 rhs];
+  r = #SETcc(cond);
+  return r;
+}

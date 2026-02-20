@@ -226,6 +226,8 @@ TESTS=\
     fixedset/fixedset.test \
     aci_pni_uak_helpers/aci_pni_uak_helpers.test \
     util/util.test \
+    util/osort.test \
+    util/ocompact.test \
     path_oram/bucket.test \
     path_oram/path_oram.test \
     path_oram/position_map.test \

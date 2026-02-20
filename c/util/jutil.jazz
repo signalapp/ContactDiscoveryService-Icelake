@@ -1,0 +1,23 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+
+from UTIL require "types.jinc"
+from UTIL require "util.jinc"
+
+// Generally useful wrappers exported for C tests and potential reuse.
+export
+fn floor_log2_jazz(reg u64 n) -> reg u64
+{
+  n = n;
+  n = _floor_log2(n);
+  return n;
+}
+
+export
+fn ceil_log2_jazz(reg u64 n) -> reg u64
+{
+  n = n;
+  n = _ceil_log2(n);
+  return n;
+}

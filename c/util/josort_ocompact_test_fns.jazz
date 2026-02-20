@@ -1,0 +1,101 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// Test-only definitions for osort and ocompact used by util/tests.
+
+from UTIL require "types.jinc"
+from UTIL require "util.jinc"
+
+// sort_data block size: flag (u8 in u64), partition (u64), key (u64)
+param int BLOCK_SIZE = 3 * 8;
+
+// Comparison: ascending by (flag, partition, key). Return 1 if lhs > rhs.
+inline
+fn cmp_function(reg uptr lhs rhs) -> reg u8
+{
+  reg u64 lhs_partition rhs_partition lhs_key rhs_key a1 a2;
+  reg u8 lhs_flag rhs_flag;
+  reg u8 lhs_partition_bigger lhs_partition_equal lhs_flag_bigger lhs_flag_equal lhs_key_bigger;
+  reg bool b;
+
+  lhs_key = [:u64 lhs + 16];
+  rhs_key = [:u64 rhs + 16];
+  b = lhs_key > rhs_key;
+  lhs_key_bigger = #SETcc(b);
+
+  a1 = [:u64 lhs + 0];
+  a2 = [:u64 rhs + 0];
+  lhs_flag = (8u)a1;
+  rhs_flag = (8u)a2;
+  b = lhs_flag == rhs_flag;
+  lhs_flag_equal = #SETcc(b);
+  lhs_key_bigger &= lhs_flag_equal;
+
+  lhs_partition = [:u64 lhs + 8];
+  rhs_partition = [:u64 rhs + 8];
+  b = lhs_partition == rhs_partition;
+  lhs_partition_equal = #SETcc(b);
+  lhs_key_bigger &= lhs_partition_equal;
+
+  b = lhs_flag > rhs_flag;
+  lhs_flag_bigger = #SETcc(b);
+  lhs_flag_bigger &= lhs_partition_equal;
+  lhs_key_bigger |= lhs_flag_bigger;
+
+  b = lhs_partition > rhs_partition;
+  lhs_partition_bigger = #SETcc(b);
+  lhs_key_bigger |= lhs_partition_bigger;
+  return lhs_key_bigger;
+}
+
+// Obliviously swap two sort_data blocks when cond is true.
+inline
+fn oblv_cond_swap(reg u8 cond, reg uptr a b)
+{
+  inline int i;
+  for i = 0 to BLOCK_SIZE / 8
+  {
+    _cond_obv_swap_u64(cond, a, b);
+    a = #LEA(a + 8);
+    b = #LEA(b + 8);
+  }
+}
+
+// Predicate for compaction: keep elements with flag != 0
+inline
+fn pred_function(reg uptr data) -> reg u8
+{
+  reg u8 cond;
+  reg bool b;
+  b = [:u8 data] != 0;
+  cond = #SETcc(b);
+  return cond;
+}
+
+// Load osort and ocompact after defining block size, comparison/predicate, and swap
+from UTIL require "osort.jinc"
+from UTIL require "ocompact.jinc"
+
+// Test wrappers that call the generic osort/ocompact implementations
+export
+fn osort_jazz(reg uptr data, reg u64 lb ub)
+{
+  #msf reg u64 msf;
+  data = data;
+  lb = lb;
+  ub = ub;
+  msf = #init_msf();
+  msf = osort(data, lb, ub, msf);
+}
+
+export
+fn ocompact_jazz(reg uptr data, reg u64 len, reg uptr distances)
+{
+  #msf reg u64 msf;
+  data = data;
+  len = len;
+  distances = distances;
+  msf = #init_msf();
+  msf = ocompact(data, len, distances, msf);
+}
+

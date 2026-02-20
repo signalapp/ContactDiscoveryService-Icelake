@@ -1,0 +1,270 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+inline
+fn _floor_log2(
+  reg u64 n
+) -> reg u64
+{
+  reg u64 result sixtythree;
+  _, _, _, _, _, result = #LZCNT(n);
+  sixtythree = 63;
+  result = sixtythree - result;
+  return result;
+}
+
+inline
+fn _ceil_log2(
+  reg u64 n
+) -> reg u64
+{
+  reg u64 result sixtyfour nm1;
+  nm1 = n;
+  nm1 -= 1;
+  _, _, _, _, _, result = #LZCNT(nm1);
+  sixtyfour = 64;
+  result = sixtyfour - result;
+  return result;
+}
+
+// It compiles exactly as C version
+inline
+fn _ternary32(
+  reg u8 cond,
+  reg u32 a b
+) -> reg u32
+{
+  reg u32 r ext_cond;
+  a = a; b = b;
+  ext_cond = (32u)cond;
+  r = #LEA_32(ext_cond - 1);
+  ext_cond = -ext_cond;
+  b &= r;
+  a &= ext_cond;
+  b |= a;
+  return b;
+}
+
+inline
+fn _ternary(
+  reg u8 cond,
+  reg u64 a b
+) -> reg u64
+{
+  reg u64 r ext_cond;
+  a = a; b = b;
+  ext_cond = (64u)cond;
+  r = #LEA(ext_cond - 1);
+  ext_cond = -ext_cond;
+  b &= r;
+  a &= ext_cond;
+  b |= a;
+  return b;
+}
+
+inline
+fn _ternary128(
+  reg u8 cond,
+  reg u128 a b
+) -> reg u128
+{
+  reg u128 c0 c1;
+  reg u64 r ext_cond;
+  stack u64 c0_s c1_s;
+
+  a = a; b = b;
+  ext_cond = (64u)cond;
+  r = #LEA(ext_cond - 1);
+  ext_cond = -ext_cond;
+  c0_s = r;
+  c1_s = ext_cond;
+  c0 = #VPBROADCAST_2u64(c0_s);
+  c1 = #VPBROADCAST_2u64(c1_s);
+  b = #VPAND_128(b, c0);
+  a = #VPAND_128(a, c1);
+  a = #VPOR_128(a, b);
+  return a;
+}
+
+inline
+fn _ternary256(
+  reg u8 cond,
+  reg u256 a b
+) -> reg u256
+{
+  reg u256 c0 c1;
+  reg u64 r ext_cond;
+  stack u64 c0_s c1_s;
+
+  a = a; b = b;
+  ext_cond = (64u)cond;
+  r = #LEA(ext_cond - 1);
+  ext_cond = -ext_cond;
+  c0_s = r;
+  c1_s = ext_cond;
+  c0 = #VPBROADCAST_4u64(c0_s);
+  c1 = #VPBROADCAST_4u64(c1_s);
+  b = #VPAND_256(b, c0);
+  a = #VPAND_256(a, c1);
+  a = #VPOR_256(a, b);
+  return a;
+}
+
+inline
+fn _cond_obv_cpy_u64(
+  reg u8 cond,
+  reg uptr dest src
+)
+{
+  reg u64 a b tmp;
+  a = [:u64 dest];
+  b = [:u64 src];
+  tmp = _ternary(cond, b, a);
+  [:u64 dest] = tmp;
+}
+
+inline
+fn _cond_obv_cpy_u128(
+  reg u8 cond,
+  reg uptr dest src
+)
+{
+  reg u128 a b tmp;
+  a = [:u128 dest];
+  b = [:u128 src];
+  tmp = _ternary128(cond, b, a);
+  [:u128 dest] = tmp;
+}
+
+inline
+fn _cond_obv_cpy_u256(
+  reg u8 cond,
+  reg uptr dest src
+)
+{
+  reg u256 a b tmp;
+  a = [:u256 dest];
+  b = [:u256 src];
+  tmp = _ternary256(cond, b, a);
+  [:u256 dest] = tmp;
+}
+
+inline
+fn _cond_obv_swap_u64(
+  reg u8 cond,
+  reg uptr a b
+)
+{
+  reg u64 ra rb tmp;
+  ra = [:u64 a];
+  rb = [:u64 b];
+  tmp = _ternary(cond, rb, ra);
+  [:u64 a] = tmp;
+  tmp = _ternary(cond, ra, rb);
+  [:u64 b] = tmp;
+}
+
+inline
+fn _cond_obv_swap_u128(
+  reg u8 cond,
+  reg uptr a b
+)
+{
+  reg u128 ra rb tmp;
+  ra = [:u128 a];
+  rb = [:u128 b];
+  tmp = _ternary128(cond, rb, ra);
+  [:u128 a] = tmp;
+  tmp = _ternary128(cond, ra, rb);
+  [:u128 b] = tmp;
+}
+
+inline
+fn _cond_obv_swap_u256(
+  reg u8 cond,
+  reg uptr a b
+)
+{
+  reg u256 ra rb tmp;
+  ra = [:u256 a];
+  rb = [:u256 b];
+  tmp = _ternary256(cond, rb, ra);
+  [:u256 a] = tmp;
+  tmp = _ternary256(cond, ra, rb);
+  [:u256 b] = tmp;
+}
+
+inline
+fn _first_pow2_leq(
+  reg u64 n
+) -> reg u64
+{
+  reg u64 msb x;
+  _, _, _, _, _, msb = #LZCNT(n);
+  x = 63;
+  msb = x - msb;
+  x = 1;
+  _, _, _, _, _, msb = #SHL(x, msb);
+  return msb;
+}
+
+inline
+fn _muluh64(
+  reg u64 a b
+) -> reg u64
+{
+  reg u64 r;
+  a = a; b = b;
+  r = #MULX_hi(a, b);
+  return r;
+}
+
+inline
+fn _ct_div(
+  reg u64 n m_prime shift1 shift2
+) -> reg u64
+{
+  reg u64 t1;
+  shift1 = shift1;
+  shift2 = shift2;
+  t1 = _muluh64(m_prime, n);
+  n = n;
+  n -= t1;
+  _, _, _, _, _, n = #SHR(n, shift1);
+  t1 += n;
+  shift1 = shift1;
+  shift2 = shift2;
+  _, _, _, _, _, t1 = #SHR(t1, shift2);
+  return t1;
+}
+
+inline
+fn _ct_mod(
+  reg u64 n d m_prime shift1 shift2
+) -> reg u64
+{
+  reg u64 q;
+  q = _ct_div(n, m_prime, shift1, shift2);
+  q *= d;
+  n = n;
+  n -= q;
+  return n;
+}
+
+inline
+fn _random_mod_by_pow_of_2(
+  #msf reg u64 msf,
+  inline int modulus
+) -> #secret reg u64, #msf reg u64
+{
+  stack u8[8] random;
+  reg ptr u8[8] randomp;
+  reg u64 r;
+
+  randomp = random;
+  randomp = #randombytes(randomp);
+  r = randomp[:u64 0];
+  r &= (modulus - 1);
+  msf = #init_msf();
+  return r, msf;
+}

@@ -1,0 +1,22 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+from UTIL require "types.jinc"
+// Import osort util definitions: block size, cmp function and swap
+require "ratelimit.jinc"
+// Import base osort
+from UTIL require "osort.jinc"
+
+export
+fn odd_even_msort_uint64s(
+  reg uptr data,
+  reg u64 lb ub
+)
+{
+  #msf reg u64 msf;
+  data = data;
+  lb = lb;
+  ub = ub;
+  msf = #init_msf();
+  msf = osort(data, lb, ub, msf);
+}

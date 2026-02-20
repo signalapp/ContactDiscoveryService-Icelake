@@ -10,7 +10,7 @@ enclave:
   enclaveId: test
   availableEpcMemory: 3200000
   loadFactor: 1.6
-  shards: 1
+  shards: 3
   token-secret: supersecretsquirrel
   simulated: true
   return-acis-without-uaks: true

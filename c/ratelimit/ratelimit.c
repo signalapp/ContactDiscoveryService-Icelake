@@ -15,39 +15,7 @@
 static unsigned char g_shared_secret_bytes[64] = {0};
 static size_t g_shared_secret_size = 0;
 
-static void bitonic_merge_u64s_recurse(u64* data, size_t lb, size_t ub, bool direction) {
-    size_t n = ub - lb;
-    if(n > 1) {
-        size_t pow2 = first_pow2_leq(n);
-        if(pow2 == n) pow2 >>= 1;
-        for(size_t i = lb; i < ub - pow2; ++i) {
-            bool cond = direction == data[i] < data[i+pow2];
-            cond_obv_swap_u64(cond, data + i, data + i + pow2);
-        }
-
-        // Note that at this point, since the input was bitonic, everything in the array with
-        // index >= lb + pow2 has a "larger" value (relative to `direction`) than the entries
-        // with index < lb + pow2. Also, both the upper and lower part of the array are bitonic
-        // subarrays.
-        bitonic_merge_u64s_recurse(data, lb, lb + pow2, direction);
-        bitonic_merge_u64s_recurse(data, lb + pow2, ub, direction);
-    }
-}
-static void bitonic_sort_u64s_recurse(u64* data, size_t lb, size_t ub, bool direction) {
-    size_t n = ub - lb;
-    if(n > 1) {
-        size_t half_n = n>>1;
-        bitonic_sort_u64s_recurse(data, lb, lb + half_n, !direction);
-        bitonic_sort_u64s_recurse(data, lb + half_n, ub, direction);
-        bitonic_merge_u64s_recurse(data, lb, ub, direction);
-    }
-}
-#ifndef IS_TEST
-static
-#endif
-void bitonic_sort_uint64s(u64* data, size_t size) {
-  bitonic_sort_u64s_recurse(data, 0, size, false);
-}
+extern void odd_even_msort_uint64s(u64* data, size_t lb, size_t ub);
 
 error_t ratelimit_set_shared_secret(
     size_t size,
@@ -79,7 +47,7 @@ error_t ratelimit_merge_e164s(
   memcpy(out, a, a_size);
   memcpy(out+a_u64s, b, b_size);
   // Sort [out].
-  bitonic_sort_uint64s(out, a_u64s+b_u64s);
+  odd_even_msort_uint64s(out, 0, a_u64s+b_u64s);
   *out_size = a_size + b_size;
   *out_bytes = (uint8_t*) out;
   return err_SUCCESS;

@@ -1,0 +1,122 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// NOTE: This module is not standalone.
+// To use ocompact, the following must be defined and imported beforehand:
+//   - const int BLOCK_SIZE: the size (in bytes) of each element to compact.
+//   - pred_function(reg uptr addr) -> reg u8:
+//       A predicate function returning 1 if the element should be kept,
+//       0 otherwise.
+//   - oblv_cond_swap(reg u8 cond, reg uptr a, reg uptr b):
+//       An oblivious swap function that swaps elements if cond is true.
+// See `josort_ocompact_test_fns.jazz` for examples of these functions and their usage.
+
+inline
+fn ocompact(
+  reg uptr data,
+  reg u64 len,
+  reg uptr distances,
+  #msf reg u64 msf
+) -> #msf reg u64
+{
+  #mmx reg u64 msf_mmx;
+  // standard variables
+  reg u64 ctr next_ctr levels next_dist shift partner;
+  // pointer variables
+  reg uptr data_j distance_j data_partner distance_partner;
+  // temporary variables
+  reg u64 zero_zu curr_distance jth_dist part_dist bit;
+  // iterator variables
+  reg u64 i j;
+  // boolean variables
+  reg u8 cond do_swap;
+  reg bool b;
+
+  b = len > 1;
+  if (b) {
+    msf = #update_msf(b, msf);
+
+    _, _, _, _, _, zero_zu = #set0();
+    _, _, _, _, _, ctr = #set0();
+
+    // Step 1: Iterate through array and label with number of cells
+    // to be moved left to be tightly compacted (L to R scan).
+    _, _, _, _, _, j = #set0();
+    data_j = data;
+    while {
+      cond = pred_function(data_j);
+      data_j = #LEA(data_j + BLOCK_SIZE);
+      curr_distance = j;
+      curr_distance -= ctr;
+      [:u64 distances + 8 * j] = _ternary(cond, curr_distance, zero_zu);
+      next_ctr = #LEA(ctr + 1);
+      ctr = _ternary(cond, next_ctr, ctr);
+      j = #LEA(j + 1);
+      b = j < len;
+    } (b) {
+      msf = #update_msf(b, msf);
+    }
+    msf = #update_msf(!b, msf);
+
+    // Step 2: Go through each level, at cell j on level L_i with
+    // distance label d_j, route contents of j to j - (d_j mod 2^{i+1})
+    levels = _ceil_log2(len);
+    i = 0;
+    while { b = i < levels; } (b) {
+      msf = #update_msf(b, msf);
+      () = #spill(levels);
+      shift = 1;
+      _, _, _, _, _, shift = #SHL(shift, i);
+      _, _, _, _, _, j = #set0();
+      while { b = j < len; } (b) {
+        msf = #update_msf(b, msf);
+        b = j >= shift;
+        if (b) {
+          msf = #update_msf(b, msf);
+          msf_mmx = #mov_msf(msf);
+          partner = j;
+          partner -= shift; // j - 2^i
+          () = #spill(shift);
+          jth_dist = [:u64 distances + j * 8];
+          // check whether jth element has to be moved 2^i positions to the left
+          bit = jth_dist;
+          _, _, _, _, _, bit = #SHR(bit, i);
+          bit &= 1;
+          b = bit > 0;
+          do_swap = #SETcc(b);
+
+          data_j = j;
+          data_j *= BLOCK_SIZE;
+          data_j = #LEA(data + data_j);
+          data_partner = partner;
+          data_partner *= BLOCK_SIZE;
+          data_partner = #LEA(data + data_partner);
+          oblv_cond_swap(do_swap, data_j, data_partner);
+
+          distance_j = #LEA(distances + j * 8);
+          distance_partner = #LEA(distances + partner * 8);
+          _cond_obv_swap_u64(do_swap, distance_partner, distance_j);
+
+          part_dist = [:u64 distances + partner * 8];
+          next_dist = part_dist;
+          msf = #mov_msf(msf_mmx);
+          () = #unspill(shift);
+          shift = #protect(shift, msf);
+          next_dist -= shift;
+          [:u64 distances + partner * 8] = _ternary(do_swap, next_dist, part_dist);
+        } else {
+          msf = #update_msf(!b, msf);
+        }
+        j = #LEA(j + 1);
+      }
+      msf = #update_msf(!b, msf);
+      i = #LEA(i + 1);
+      () = #unspill(levels);
+      levels = #protect(levels, msf);
+    }
+    msf = #update_msf(!b, msf);
+  } else {
+    msf = #update_msf(!b, msf);
+  }
+  return msf;
+}

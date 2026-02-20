@@ -1,0 +1,171 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// NOTE: This module is not standalone.
+// To use osort, the following must be defined and imported beforehand:
+//   - const int BLOCK_SIZE: the size in bytes of each element to sort.
+//   - cmp_function(reg uptr addr1, reg uptr addr2) -> reg u8:
+//      returns 1 if the first element is greater, 0 otherwise
+//   - oblv_cond_swap(reg u8 cond, reg uptr a, reg uptr b):
+//      obliviously swaps elements if cond is true
+//
+// Reference example: `ratelimit.jinc`
+// Typical file structure for usage:
+//   1. Define block size, comparison function, and oblivious swap
+//   2. `require "osort.jinc"`
+//   3. Export a wrapper function that calls `osort`
+
+inline
+fn osort(
+  reg uptr data,
+  reg u64 lb ub,
+  #msf reg u64 msf
+) -> #msf reg u64
+{
+  // pointer/address computation
+  reg uptr base_lb_plus_k base_lb data_base addr_a addr_b;
+  // loop structure
+  reg u64 i j k p;
+  // length/range tracking
+  reg u64 n lb_val len_curr len_minus_k;
+  // step/span logic
+  reg u64 two_p two_k span p_minus1;
+  // region/comparison helpers
+  reg u64 region_left region_right i_stop i_count tmp;
+  // bool variables
+  reg u8 do_swap;
+  reg bool b cond;
+  // spilled values
+  stack u64 p_minus1_s lb_s len_minus_k_s two_k_s len_s;
+  #mmx reg uptr base_lb_plus_k_mmx base_lb_mmx;
+  #mmx reg u64 msf_mmx i_stop_mmx;
+
+  data = data;
+  lb = lb;
+  n = ub;
+  n -= lb;
+  cond = n > 1;
+  if (cond) {
+    msf = #update_msf(cond, msf);
+    base_lb = lb;
+    base_lb *= BLOCK_SIZE;
+    base_lb += data;
+    base_lb_mmx = base_lb;
+    len_curr = n;
+    p = 1;
+    data_base = data;
+    lb_val = lb;
+    lb_s = lb_val;
+    while {
+      two_p = #LEA(p + p);
+      p_minus1 = #LEA(p - 1);
+      p_minus1_s = p_minus1;
+      cond = p != 0;
+      if (cond) {
+        msf = #update_msf(cond, msf);
+        len_s = len_curr;
+        k = p;
+        while {
+          p_minus1 = p_minus1_s;
+          p_minus1 = #protect(p_minus1, msf);
+          j = p_minus1;
+          j &= k;
+          len_minus_k = len_s;
+          len_minus_k = #protect(len_minus_k, msf);
+          len_minus_k -= k;
+          cond = j < len_minus_k;
+          if (cond) {
+            msf = #update_msf(cond, msf);
+            span = len_minus_k;
+            lb_val = lb_s;
+            lb_val = #protect(lb_val, msf);
+            tmp = #LEA(lb_val + k);
+            two_k = #LEA(k + k);
+            span -= j;
+            base_lb_plus_k = tmp;
+            base_lb_plus_k *= BLOCK_SIZE;
+            base_lb_plus_k += data_base;
+            base_lb_plus_k_mmx = base_lb_plus_k;
+            while {
+              len_minus_k_s = len_minus_k;
+              b = span <= k;
+              i_count = k;
+              i = j;
+              i_count = span if b;
+              i_stop = #LEA(i_count + j);
+              cond = i_count != 0;
+              if (cond) {
+                msf = #update_msf(cond, msf);
+                two_k_s = two_k;
+                while {
+                  i_stop_mmx = i_stop;
+                  tmp = i;
+                  tmp = tmp / two_p;
+                  region_left = tmp;
+                  region_right = #LEA(k + i);
+                  region_right = region_right / two_p;
+                  cond = region_left == region_right;
+                  if (cond) {
+                    msf = #update_msf(cond, msf);
+                    msf_mmx = #mov_msf(msf);
+                    // comp_and_swap
+                    addr_a = i;
+                    addr_a *= BLOCK_SIZE;
+                    addr_b = addr_a;
+                    base_lb = base_lb_mmx;
+                    addr_a += base_lb;
+                    base_lb_plus_k = base_lb_plus_k_mmx;
+                    addr_b += base_lb_plus_k;
+                    do_swap = cmp_function(addr_a, addr_b);
+                    oblv_cond_swap(do_swap, addr_a, addr_b);
+                    // end comp_and_swap
+                    msf = #mov_msf(msf_mmx);
+                  } else {
+                    msf = #update_msf(!cond, msf);
+                  }
+                  i += 1;
+                  i_stop = i_stop_mmx;
+                  cond = i_stop != i;
+                } (cond) {
+                  msf = #update_msf(cond, msf);
+                }
+                msf = #update_msf(!cond, msf);
+                two_k = two_k_s;
+                two_k = #protect(two_k, msf);
+              } else {
+                msf = #update_msf(!cond, msf);
+              }
+              j += two_k;
+              span -= two_k;
+              len_minus_k = len_minus_k_s;
+              len_minus_k = #protect(len_minus_k, msf);
+              cond = j < len_minus_k;
+            } (cond) {
+              msf = #update_msf(cond, msf);
+            }
+            msf = #update_msf(!cond, msf);
+          } else {
+            msf = #update_msf(!cond, msf);
+          }
+          k >>= 1;
+          cond = k != 0;
+        } (cond) {
+          msf = #update_msf(cond, msf);
+        }
+        msf = #update_msf(!cond, msf);
+        len_curr = len_s;
+        len_curr = #protect(len_curr, msf);
+      } else {
+        msf = #update_msf(!cond, msf);
+      }
+      p = two_p;
+      cond = two_p < len_curr;
+    } (cond) {
+      msf = #update_msf(cond, msf);
+    }
+    msf = #update_msf(!cond, msf);
+  } else {
+    msf = #update_msf(!cond, msf);
+  }
+  return msf;
+}

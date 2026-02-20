@@ -195,9 +195,9 @@ static void test_constant_eq() {
   TEST_ASSERT(!ratelimit_constant_time_equal(input_a, input_c, sizeof(input_a)));
 }
 
-void bitonic_sort_uint64s(u64* data, size_t n);
+void odd_even_msort_uint64s(u64* data, size_t lb, size_t ub);
 
-static void test_bitonic_sort_uint64s() {
+static void test_odd_even_msort_uint64s() {
   int f = open("/dev/urandom", 0);
   TEST_ASSERT(f > 0);
   for (size_t iter = 0; iter < 16; iter++) {
@@ -214,7 +214,7 @@ static void test_bitonic_sort_uint64s() {
       bytes -= r;
     }
     int64_t start = time_micros();
-    bitonic_sort_uint64s(to_sort, size);
+    odd_even_msort_uint64s(to_sort, 0, size);
     int64_t duration = time_micros() - start;
     TEST_LOG("size %ld in %ld micros", size, duration);
     uint64_t last = 0;
@@ -237,6 +237,6 @@ int main(int argc, char** argv) {
   RUN_TEST(test_roundtrip);
   RUN_TEST(test_merge);
   RUN_TEST(test_constant_eq);
-  RUN_TEST(test_bitonic_sort_uint64s);
+  RUN_TEST(test_odd_even_msort_uint64s);
   return 0;
 }

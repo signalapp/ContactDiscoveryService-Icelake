@@ -72,9 +72,51 @@ int test_ct_div() {
   return err_SUCCESS;
 }
 
+extern uint64_t floor_log2_jazz(uint64_t n);
+extern uint64_t ceil_log2_jazz(uint64_t n);
+
+int test_floor_log2() {
+  // test against C reference implementation
+  for (size_t n = 1; n <= 1024; ++n) {
+    TEST_ASSERT(floor_log2_jazz(n) == floor_log2(n));
+  }
+  // powers of two
+  for (size_t i = 0; i < 63; ++i) {
+    uint64_t n = 1UL << i;
+    TEST_ASSERT(floor_log2_jazz(n) == i);
+  }
+  // powers of two +/- 1
+  for (size_t i = 2; i < 63; ++i) {
+    uint64_t n = 1UL << i;
+    TEST_ASSERT(floor_log2_jazz(n - 1) == i - 1);
+    TEST_ASSERT(floor_log2_jazz(n + 1) == i);
+  }
+  return 0;
+}
+
+int test_ceil_log2() {
+  // test against C reference implementation
+  for (size_t n = 1; n <= 1024; ++n) {
+    TEST_ASSERT(ceil_log2_jazz(n) == ceil_log2(n));
+  }
+  // powers of two: ceil_log2(2^i) == i
+  for (size_t i = 0; i < 63; ++i) {
+    uint64_t n = 1UL << i;
+    TEST_ASSERT(ceil_log2_jazz(n) == i);
+  }
+  // powers of two + 1: ceil_log2(2^i + 1) == i + 1
+  for (size_t i = 1; i < 63; ++i) {
+    uint64_t n = (1UL << i) + 1;
+    TEST_ASSERT(ceil_log2_jazz(n) == i + 1);
+  }
+  return 0;
+}
+
 int main(int argc, char** argv) {
   RUN_TEST(test_u64_ternary());
   RUN_TEST(test_muluh());
   RUN_TEST(test_ct_div());
+  RUN_TEST(test_floor_log2());
+  RUN_TEST(test_ceil_log2());
   return 0;
 }

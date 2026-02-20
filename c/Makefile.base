@@ -112,11 +112,17 @@ JASMIN_CT ?= jasmin-ct
 
 # Common flags used when invoking jasmin tools
 JASMIN_FLAGS= \
+  -I UTIL=$(BASEDIR)/util/ \
+  -I SIPHASH=$(BASEDIR)/halfsiphash/ \
 ##JASMIN_FLAGS
 JASMIN_CT_FLAGS= \
   --infer \
+  -IUTIL=$(BASEDIR)/util/ \
+  -ISIPHASH=$(BASEDIR)/halfsiphash/ \
 ##JASMIN_CT_FLAGS
 JASMIN_SCT_FLAGS= \
   --infer \
   --sct \
+  -IUTIL=$(BASEDIR)/util/ \
+  -ISIPHASH=$(BASEDIR)/halfsiphash/ \
 ##JASMIN_SCT_FLAGS
