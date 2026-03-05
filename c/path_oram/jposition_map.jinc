@@ -1,0 +1,51 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+export
+fn position_map_read_then_set_jazz(
+  reg uptr position_map,
+  reg u64 block_id position prev_position
+) -> reg u32
+{
+  #msf reg u64 msf;
+  reg u64 pp;
+  reg u32 r;
+
+  position_map = position_map;
+  block_id = block_id;
+  position = position;
+  prev_position = prev_position;
+
+  msf = #init_msf();
+
+  () = #spill(prev_position);
+  r, pp, msf = PathORAM::PositionMap::read_then_set(position_map, block_id, position, msf);
+  () = #unspill(prev_position);
+  [:u64 prev_position] = pp;
+
+  return r;
+}
+
+export
+fn position_map_read_jazz(
+  reg uptr position_map,
+  reg u64 block_id prev_position
+) -> reg u32
+{
+  #msf reg u64 msf;
+  reg u64 pp;
+  reg u32 r;
+
+  position_map = position_map;
+  block_id = block_id;
+  prev_position = prev_position;
+
+  msf = #init_msf();
+
+  () = #spill(prev_position);
+  r, pp, msf = PathORAM::PositionMap::read(position_map, block_id, msf);
+  () = #unspill(prev_position);
+  [:u64 prev_position] = pp;
+
+  return r;
+}

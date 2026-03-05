@@ -30,9 +30,9 @@
 
 #define QUERIES_PER_BATCH 500
 #define AVAILABLE_BYTES (4ul << 30)
-#define NUM_SHARDS 10
-#define STASH_OVERFLOW_SIZE 60
-#define NUM_RECORDS_TO_LOAD 1500000
+#define NUM_SHARDS 3 // must match Jasmin c/jasmin.test/params.jinc NUM_SHARDS
+#define STASH_OVERFLOW_SIZE 100
+#define NUM_RECORDS_TO_LOAD 1555000
 
 bool check_simulate_opt(int *argc, const char *argv[])
 {
@@ -127,7 +127,7 @@ int main(int argc, const char *argv[])
     int retval = 0;
     pthread_t tids[NUM_SHARDS];
     printf("initializing enclave\n");
-    OPEN_ENCLAVE_CALL_TEST_ERR(enclave_init(enclave, &retval, AVAILABLE_BYTES, 1.6, NUM_SHARDS, STASH_OVERFLOW_SIZE));
+    OPEN_ENCLAVE_CALL_TEST_ERR(enclave_init(enclave, &retval, AVAILABLE_BYTES, 1.625, NUM_SHARDS, STASH_OVERFLOW_SIZE));
     ENCLAVE_TEST_ERR(retval);
 
     for (size_t i = 0; i < NUM_SHARDS; ++i)

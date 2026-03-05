@@ -28,12 +28,12 @@ int test_bucket_store_put_get()
     assert(DECRYPTED_BLOCK_SIZE >= sizeof(block1));
 
     u64 bucket_id = 1234;
-    bucket_store_write_bucket_blocks(store, bucket_id, blocks);
+    bucket_store_write_bucket_blocks_jazz(store, bucket_id, blocks);
 
 
     u8 bucket_data[DECRYPTED_BUCKET_SIZE];
     block* new_blocks = (block*)bucket_data;
-    bucket_store_read_bucket_blocks(store, bucket_id, new_blocks);
+    bucket_store_read_bucket_blocks_jazz(store, bucket_id, new_blocks);
     assert(new_blocks[0].id == block1.id);
     assert(new_blocks[1].id == block2.id);
     for (size_t i = 2; i < BLOCKS_PER_BUCKET; ++i)
@@ -66,12 +66,12 @@ int test_bucket_store_clear()
 
     u64 bucket_id = 1234;
 
-    bucket_store_write_bucket_blocks(store, bucket_id, blocks);
+    bucket_store_write_bucket_blocks_jazz(store, bucket_id, blocks);
 
 
     u8 bucket_data[DECRYPTED_BUCKET_SIZE];
     block* new_blocks = (block*)bucket_data;
-    bucket_store_read_bucket_blocks(store, bucket_id, new_blocks);
+    bucket_store_read_bucket_blocks_jazz(store, bucket_id, new_blocks);
 
     assert(new_blocks[0].id == block1.id);
     assert(new_blocks[1].id == block2.id);
@@ -93,7 +93,7 @@ int test_bucket_store_clear()
 
     // Now clear the bucket store and confirm data is gone
     bucket_store_clear(store);
-    bucket_store_read_bucket_blocks(store, bucket_id, new_blocks);
+    bucket_store_read_bucket_blocks_jazz(store, bucket_id, new_blocks);
     for (size_t i = 0; i < BLOCKS_PER_BUCKET; ++i)
     {
         assert(block_is_empty(new_blocks[i]));

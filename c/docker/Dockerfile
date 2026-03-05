@@ -26,6 +26,7 @@ RUN mkdir /src && \
         valgrind \
         pkg-config \
         xz-utils \
+        rsync \
         opam \
         build-essential \
         m4 \
@@ -77,11 +78,13 @@ RUN groupadd -g $GID signal && \
 USER signal
 WORKDIR /home/signal
 
+COPY cds-jasmin.opam cds-jasmin.opam.locked /home/signal/cds-jasmin/
+
 ENV OPAMYES=1
 ENV OPAMJOBS=2
 RUN opam init -y --disable-sandboxing -c ocaml-base-compiler.4.12.0 && \
     eval $(opam env) && \
-    opam install -y jasmin.2025.06.1
+    opam install --locked /home/signal/cds-jasmin/cds-jasmin.opam
 ENV PATH="/home/signal/.opam/ocaml-base-compiler.4.12.0/bin:${PATH}"
 
 WORKDIR /src

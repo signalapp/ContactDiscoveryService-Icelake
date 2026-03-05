@@ -1,0 +1,12 @@
+opam-version: "2.0"
+name: "cds-jasmin"
+version: "2025.06.1"
+maintainer: "Signal"
+authors: ["Signal"]
+homepage: "https://signal.org"
+bug-reports: "https://github.com/signalapp/ContactDiscoveryService-Icelake-Private/issues"
+synopsis: "Meta-package to pin Jasmin toolchain"
+description: "Wrapper package that depends on a specific Jasmin compiler version, used with a lockfile for reproducibility."
+depends: [
+  "jasmin" {= "2025.06.1"}
+]

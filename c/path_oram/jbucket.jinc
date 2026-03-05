@@ -1,0 +1,26 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+export
+fn bucket_store_read_bucket_blocks_jazz(
+  reg uptr bucket_store,
+  reg u64 bucket_id,
+  reg uptr bucket_data
+)
+{
+  #msf reg u64 msf;
+  msf = #init_msf();
+  msf = BucketStore::read_bucket_blocks(bucket_store, bucket_id, bucket_data, msf);
+}
+
+export
+fn bucket_store_write_bucket_blocks_jazz(
+  reg uptr bucket_store,
+  reg u64 bucket_id,
+  reg uptr bucket_data
+)
+{
+  #msf reg u64 msf;
+  msf = #init_msf();
+  msf = BucketStore::write_bucket_blocks(bucket_store, bucket_id, bucket_data, msf);
+}

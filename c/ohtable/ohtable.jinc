@@ -1,0 +1,558 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+from ENV require "params.jinc"
+from UTIL require "util.jinc"
+from UTIL require "record.jinc"
+
+// --- Record helpers ---
+// A "record" is a fixed-size key-value entry occupying RECORD_SIZE qwords
+// within an ORAM block's data area.  The first qword is the key; a key of
+// -1 (all ones) means the slot is empty.
+
+// Returns 1 if the record pointed to by `record` is empty (key == -1).
+inline
+fn record_empty(reg uptr record) -> reg u8
+{
+  reg u64 e;
+  reg u8 cond;
+  reg bool b;
+  e = [:u64 record + 0];
+  b = e == -1;
+  cond = #SETcc(b);
+  return cond;
+}
+
+// Same as record_empty but reads from a stack-allocated block_data array
+// at compile-time-known record offset.
+inline
+fn record_empty_stack(reg ptr u64[BLOCK_DATA_SIZE_QWORDS] block_data, inline int record)
+-> reg u8, reg ptr u64[BLOCK_DATA_SIZE_QWORDS]
+{
+  reg u64 e;
+  reg u8 cond;
+  reg bool b;
+  e = block_data[:u64 record];
+  b = e == -1;
+  cond = #SETcc(b);
+  return cond, block_data;
+}
+
+// Returns 1 if the record at `record` is empty OR its key matches `key`.
+// Used by both robinhood (to find insertion points) and get_record (to find matches).
+inline
+fn record_empty_or_matches(reg ptr u64[BLOCK_DATA_SIZE_QWORDS] block_data, reg u64 key, inline int record)
+-> reg u8, reg ptr u64[BLOCK_DATA_SIZE_QWORDS]
+{
+  reg u64 e;
+  reg u8 c0 c1;
+  reg bool b;
+  e = block_data[:u64 record];
+  b = e == -1;
+  c0 = #SETcc(b);
+  b = e == key;
+  c1 = #SETcc(b);
+  c0 |= c1;
+  return c0, block_data;
+}
+
+// --- Oblivious swap primitives ---
+// Conditionally swap a single qword between a stack array slot and a memory location.
+inline
+fn cond_obv_swap_u64_stack(
+  reg u8 cond,
+  reg ptr u64[RECORD_SIZE] a,
+  reg uptr b,
+  inline int i
+) -> reg ptr u64[RECORD_SIZE]
+{
+  reg u64 ra rb tmp;
+  ra = a[:u64 i];
+  rb = [:u64 b];
+  tmp = _ternary(cond, rb, ra);
+  a[:u64 i] = tmp;
+  tmp = _ternary(cond, ra, rb);
+  [:u64 b] = tmp;
+  return a;
+}
+
+// Conditionally swap an entire record (RECORD_SIZE qwords) between stack and memory.
+inline
+fn cond_swap_record(
+  reg u8 cond,
+  reg ptr u64[RECORD_SIZE] a,
+  reg uptr b
+) -> reg ptr u64[RECORD_SIZE]
+{
+  inline int i;
+  for i = 0 to RECORD_SIZE
+  {
+    a = cond_obv_swap_u64_stack(cond, a, b, i);
+    b = #LEA(b + 8);
+  }
+  return a;
+}
+
+// --- OHTable: hashing and probe distance ---
+// The hash table uses Robin Hood hashing with open addressing.  Each ORAM
+// block holds `items_per_block` record slots.  A record's ideal position is
+// hash(key) mod capacity; Robin Hood insertion displaces records that are
+// closer to their ideal position to reduce worst-case probe length.
+//
+// Division and modulo use precomputed Barrett reduction parameters (*_CT_*)
+// to avoid the variable-time x86 DIV instruction.
+
+namespace OHTable {
+// struct ohtable field indices (in u64 units)
+// Jasmin only accesses these fields; C struct has more fields
+param int CAPACITY = 1;
+param int ITEMS_PER_BLOCK = 3;
+param int CAPACITY_CT_M_PRIME = 11;
+param int CAPACITY_CT_SHIFT1 = 12;
+param int CAPACITY_CT_SHIFT2 = 13;
+param int ITEMS_PER_BLOCK_CT_M_PRIME = 14;
+param int ITEMS_PER_BLOCK_CT_SHIFT1 = 15;
+param int ITEMS_PER_BLOCK_CT_SHIFT2 = 16;
+param int OHTABLE_NUM_U64S = 17;
+
+// constants
+param int FNV_OFFSET_BASIS = 14695981039346656037;
+param int FNV_PRIME = 1099511628211;
+
+inline
+fn fnv1a64(reg u64 size, reg uptr data) -> reg u64
+{
+  reg u64 hash byte;
+  reg u64 i;
+
+  // http://isthe.com/chongo/tech/comp/fnv/
+  hash = FNV_OFFSET_BASIS;
+
+  i = 0;
+  while (i < size) {
+    byte = [data + 8 * i];
+    hash ^= byte;
+    hash *= FNV_PRIME;
+    i = #LEA(i + 1);
+  }
+  return hash;
+}
+
+inline
+fn raw_hash(reg uptr key) -> reg u64
+{
+  reg u64 hash byte;
+  inline int i;
+
+  hash = FNV_OFFSET_BASIS;
+
+  for i = 0 to 8 {
+    byte = (64u)[:u8 key + i];
+    hash ^= byte;
+    hash *= FNV_PRIME;
+  }
+  return hash;
+}
+
+inline
+fn raw_hash_stack(reg ptr u64[BLOCK_DATA_SIZE_QWORDS] block_data, inline int key)
+-> reg u64, reg ptr u64[BLOCK_DATA_SIZE_QWORDS]
+{
+  reg u64 hash byte;
+  inline int i;
+
+  hash = FNV_OFFSET_BASIS;
+
+  for i = 0 to 8 {
+    byte = (64u)block_data[:u8 8 * key + i];
+    hash ^= byte;
+    hash *= FNV_PRIME;
+  }
+  return hash, block_data;
+}
+
+// Hash a key to (block_id, index_within_block).
+// block_id identifies which ORAM block to access; index identifies the
+// record slot within that block's data area.
+inline
+fn _hash(
+  reg uptr key,
+  reg u64 capacity items_per_block
+          capacity_ct_m_prime capacity_ct_shift1 capacity_ct_shift2
+          items_per_block_ct_m_prime items_per_block_ct_shift1 items_per_block_ct_shift2
+) -> reg u64, reg u64
+{
+  reg u64 h rh block_id index;
+
+  rh = raw_hash(key);
+  h = _ct_mod(rh, capacity, capacity_ct_m_prime, capacity_ct_shift1, capacity_ct_shift2);
+
+  block_id = _ct_div(h, items_per_block_ct_m_prime, items_per_block_ct_shift1, items_per_block_ct_shift2);
+  index = _ct_mod(h, items_per_block, items_per_block_ct_m_prime, items_per_block_ct_shift1, items_per_block_ct_shift2);
+  return block_id, index;
+}
+
+inline
+fn hash(reg uptr ohtable key) -> reg u64, reg u64
+{
+  reg u64 block_id index;
+  reg u64 capacity items_per_block
+          capacity_ct_m_prime capacity_ct_shift1 capacity_ct_shift2
+          items_per_block_ct_m_prime items_per_block_ct_shift1 items_per_block_ct_shift2;
+
+  capacity = [:u64 ohtable + 8 * CAPACITY];
+  items_per_block = [:u64 ohtable + 8 * ITEMS_PER_BLOCK];
+  capacity_ct_m_prime = [:u64 ohtable + 8 * CAPACITY_CT_M_PRIME];
+  capacity_ct_shift1 = [:u64 ohtable + 8 * CAPACITY_CT_SHIFT1];
+  capacity_ct_shift2 = [:u64 ohtable + 8 * CAPACITY_CT_SHIFT2];
+  items_per_block_ct_m_prime = [:u64 ohtable + 8 * ITEMS_PER_BLOCK_CT_M_PRIME];
+  items_per_block_ct_shift1 = [:u64 ohtable + 8 * ITEMS_PER_BLOCK_CT_SHIFT1];
+  items_per_block_ct_shift2 = [:u64 ohtable + 8 * ITEMS_PER_BLOCK_CT_SHIFT2];
+
+  block_id, index = _hash(key, capacity, items_per_block,
+                 capacity_ct_m_prime, capacity_ct_shift1, capacity_ct_shift2,
+                 items_per_block_ct_m_prime, items_per_block_ct_shift1, items_per_block_ct_shift2);
+  return block_id, index;  // location
+}
+
+// Compute the probe distance (number of slots) from a record's ideal hash
+// position to its current position, wrapping around the table.  This is the
+// Robin Hood displacement metric: records with larger displacement are
+// "poorer" and should not be evicted by records with smaller displacement.
+inline
+fn distance_to_hash(
+  reg u64 ohtable_capacity hash target_hash
+) -> reg u64
+{
+  reg u64 c0 c1;
+  reg bool b;
+  c0 = target_hash;
+  c0 -= hash;
+  c1 = #LEA(c0 + ohtable_capacity);
+  b = target_hash < hash;
+  c0 = #CMOVcc(b, c1, c0);
+  return c0;
+}
+} // namespace OHTable
+
+// --- Accessor functions ---
+// These are ORAM block accessors: callback-style functions invoked by
+// PathORAM::access once the target block has been fetched into `block_data`
+// (a stack-resident copy of the block's data area).  The accessor operates
+// on the records within the block, then the modified block_data is written
+// back by the ORAM.
+//
+// State that must persist across multiple ORAM accesses (i.e. across blocks
+// along a probe chain) is passed via `vargs`, a pointer to a caller-owned
+// struct whose layout is defined by the param indices below.
+
+namespace Accessor {
+// vargs layout for robinhood — indices into a u64 array.
+// The caller (C code in ohtable.c) populates this struct before the first
+// ORAM access and reads results from it after the last access.
+param int RECORD_SIZE_QWORDS = 0;  // size of one record in qwords
+param int START_INDEX = 1;         // first record slot to examine in this block
+param int INSERT_COMPLETE = 2;     // set to 1 once the original record has landed
+param int IN_RECORD = 3;           // pointer to the record being inserted/displaced
+param int CURR_JUMP = 4;           // probe displacement of the record we're carrying
+param int CURR_RECORD_HASH = 5;    // hash(key) mod capacity of the carried record
+param int CURR_SLOT_HASH = 6;      // current slot position (advances each block)
+param int TRACE = 7;               // number of non-empty slots examined after start
+param int INSERTED_NEW_ITEM = 8;   // set to 1 if the insert filled a previously-empty slot
+param int MAX_OFFSET = 9;          // max displacement seen (for health monitoring)
+param int OHTABLE_CAPACITY = 10;   // table capacity (for distance_to_hash)
+param int CAPACITY_CT_M_PRIME = 11; // Barrett params for constant-time mod
+param int CAPACITY_CT_SHIFT1 = 12;
+param int CAPACITY_CT_SHIFT2 = 13;
+
+// Oblivious Robin Hood insertion/update within one ORAM block.
+//
+// Called once per block along the hash table's probe sequence.  For each
+// record slot in the block (starting from START_INDEX), this function
+// obliviously performs one of three actions:
+//
+//   1. STORE: The slot is empty or matches the key being inserted.
+//      Copy the carried record into the slot.  Set INSERT_COMPLETE.
+//
+//   2. SWAP: The slot's occupant has a *smaller* probe displacement than
+//      the carried record (Robin Hood invariant violation).  Swap the
+//      carried record with the occupant — the displaced occupant becomes
+//      the new carried record and will be inserted further along.
+//
+//   3. SKIP: Neither condition holds.  No data moves, but we still visit
+//      the slot (constant-time: every slot is touched regardless).
+//
+// After processing all slots, the carried record (possibly updated by a
+// swap) is back in IN_RECORD, and CURR_JUMP/CURR_RECORD_HASH reflect
+// the carried record's current displacement.  The next ORAM access will
+// continue the probe in the next block.
+//
+// Tie-breaking: when two records have equal displacement, we compare raw
+// (pre-modulo) hashes to establish a deterministic total order and avoid
+// cycles.
+inline
+fn robinhood(
+  reg ptr u64[BLOCK_DATA_SIZE_QWORDS] block_data,
+  reg uptr vargs,
+  #msf reg u64 msf
+) -> reg ptr u64[BLOCK_DATA_SIZE_QWORDS], #msf reg u64
+{
+  // standard variables
+  reg u64 candidate_hash;
+  // auxiliar variables
+  reg u64 tmp;
+  // pointer variables
+  reg uptr record;
+  // boolean variables
+  reg u8 inserted search_started should_store jump_smaller
+         should_swap insert_complete cond;
+  reg bool b;
+  inline int records_per_block candidate_record i;
+
+  vargs = vargs;
+  () = #spill(block_data);
+  records_per_block = BLOCK_DATA_SIZE_QWORDS / RECORD_SIZE;
+  _, _, _, _, _, inserted = #set0_8(); // have we done any store or swap yet in this block?
+  () = #spill(inserted);
+
+  // Visit every record slot in the block.  All slots are visited regardless
+  // of whether insertion completes early — this is required for constant-time.
+  for i = 0 to records_per_block
+  {
+    // Load the record we're trying to insert (may have been swapped by a prior iteration)
+    #declassify record = [:u64 vargs + 8 * IN_RECORD];
+    record = #protect(record, msf);
+    reg u64 key;
+    key = [:u64 record + 0];
+    () = #spill(record);
+    candidate_record = i * RECORD_SIZE;
+
+    // Determine should_store: can we place the carried record directly here?
+    // Requires: (a) we've reached the start index, (b) slot is empty or key matches,
+    // (c) insertion hasn't already completed.
+    tmp = [:u64 vargs + 8 * START_INDEX];
+    b = tmp <= i;
+    search_started = #SETcc(b);
+    () = #spill(search_started);
+    () = #unspill(block_data);
+    block_data = #protect_ptr(block_data, msf);
+    should_store, block_data = record_empty_or_matches(block_data, key, candidate_record);
+    () = #spill(block_data);
+    () = #unspill(search_started);
+    should_store &= search_started;
+    tmp = [:u64 vargs + 8 * INSERT_COMPLETE];
+    insert_complete = (8u)tmp;
+    cond = insert_complete;
+    () = #spill(insert_complete);
+    cond = !cond;
+    should_store &= cond;
+    () = #spill(should_store);
+
+    // Compute displacement of the candidate (existing) record in this slot:
+    // hash its key, reduce mod capacity, then measure distance from ideal to current position.
+    reg u64 rh;
+    () = #unspill(block_data);
+    rh, block_data = OHTable::raw_hash_stack(block_data, candidate_record);
+    () = #spill(block_data);
+    reg u64 oh_cap m_prime shift1 shift2;
+    oh_cap = [:u64 vargs + 8 * OHTABLE_CAPACITY];
+    m_prime = [:u64 vargs + 8 * CAPACITY_CT_M_PRIME];
+    shift1 = [:u64 vargs + 8 * CAPACITY_CT_SHIFT1];
+    shift2 = [:u64 vargs + 8 * CAPACITY_CT_SHIFT2];
+    candidate_hash = _ct_mod(rh, oh_cap, m_prime, shift1, shift2);
+
+    reg u64 clh;
+    clh = [:u64 vargs + 8 * CURR_SLOT_HASH];
+    reg u64 candidate_jump;
+    candidate_jump = OHTable::distance_to_hash(oh_cap, candidate_hash, clh);
+    () = #spill(candidate_jump);
+
+    // to decide if we swap we see which has the smaller jump. If it's a tie, we break it by looking at
+    // the full hash. (Candidate_hash and curr_record_hash are taken modulo the table capacity)
+    reg u64 curr_jump;
+    curr_jump = [:u64 vargs + 8 * CURR_JUMP];
+    () = #unspill(candidate_jump);
+    b = candidate_jump == curr_jump;
+    jump_smaller = #SETcc(b);
+    reg u64 rh0 rh1;
+    () = #unspill(block_data);
+    rh0, block_data = OHTable::raw_hash_stack(block_data, candidate_record);
+    () = #spill(block_data);
+    () = #unspill(record);
+    record = #protect(record, msf);
+    rh1 = OHTable::raw_hash(record);
+    () = #spill(record);
+    b = rh0 < rh1;
+    cond = #SETcc(b);
+    jump_smaller &= cond;
+    () = #unspill(candidate_jump);
+    b = candidate_jump < curr_jump;
+    cond = #SETcc(b);
+    jump_smaller |= cond;
+    
+    // Determine should_swap: Robin Hood eviction.
+    // Swap if: not storing directly, insertion not yet complete, search has started,
+    // AND the existing record's displacement is smaller (it's "richer" than us).
+    () = #unspill(should_store);
+    should_swap = should_store;
+    should_swap = !should_swap;
+    () = #unspill(insert_complete);
+    cond = insert_complete;
+    cond = !cond;
+    should_swap &= cond;
+    () = #unspill(search_started);
+    should_swap &= search_started;
+    should_swap &= jump_smaller;
+    () = #spill(should_swap);
+    
+    // Track whether this is a genuinely new insertion (into an empty slot),
+    // as opposed to updating an existing record with the same key.
+    reg u8 inserted_new_item;
+    tmp = [:u64 vargs + 8 * INSERTED_NEW_ITEM];
+    inserted_new_item = (8u)tmp;
+    reg u8 record_empty;
+    () = #unspill(block_data);
+    block_data = #protect_ptr(block_data, msf);
+    record_empty, block_data = record_empty_stack(block_data, candidate_record);
+    () = #spill(block_data);
+    () = #unspill(should_store);
+    record_empty &= should_store;  // storing into an empty slot
+    () = #unspill(should_swap);
+    record_empty |= should_swap;   // or displacing (always a new chain insertion)
+    () = #unspill(inserted);
+    cond = inserted;
+    cond = !cond;
+    record_empty &= cond;          // only count the first such event
+    inserted_new_item |= record_empty;
+    tmp = (64u)inserted_new_item;
+    [:u64 vargs + 8 * INSERTED_NEW_ITEM] = tmp;
+    () = #spill(vargs);
+
+    // Execute the data movement:
+    //   should_store => copy carried record into slot (one-way)
+    //   should_swap  => swap carried record with slot occupant (two-way)
+    // At most one of these is true. Both use oblivious conditional moves.
+    reg uptr r;
+    () = #unspill(record);
+    record = #protect(record, msf);
+    r = record;
+    () = #spill(record);
+    () = #unspill(block_data, should_store);
+    block_data = #protect_ptr(block_data, msf);
+    block_data[candidate_record:RECORD_SIZE] = cond_copy_record_dst_stack(should_store, block_data[candidate_record:RECORD_SIZE], r);
+    () = #unspill(record);
+    record = #protect(record, msf);
+    r = record;
+    () = #unspill(should_swap);
+    block_data[candidate_record:RECORD_SIZE] = cond_swap_record(should_swap, block_data[candidate_record:RECORD_SIZE], r);
+    () = #spill(block_data);
+
+    // Update state: any store or swap means we've "inserted" (touched this block).
+    // insert_complete is set only on store (the record found its final home);
+    // a swap means we're still carrying a displaced record.
+    () = #unspill(inserted, should_store);
+    inserted |= should_store;
+    inserted |= should_swap;
+    () = #spill(inserted);
+    () = #unspill(insert_complete);
+    insert_complete |= should_store;
+    tmp = (64u)insert_complete;
+    () = #unspill(vargs);
+    vargs = #protect(vargs, msf);
+    [:u64 vargs + 8 * INSERT_COMPLETE] = tmp;
+
+    reg u64 mo;
+    mo = [:u64 vargs + 8 * MAX_OFFSET];
+    b = curr_jump > mo;
+    cond = #SETcc(b);
+    cond &= should_store;
+    cond |= should_swap;
+    [:u64 vargs + 8 * MAX_OFFSET] = _ternary(cond, curr_jump, mo);
+
+    // On swap, the carried record changes identity: adopt the displaced
+    // record's hash and displacement.
+    reg u64 crh;
+    crh = [:u64 vargs + 8 * CURR_RECORD_HASH];
+    [:u64 vargs + 8 * CURR_RECORD_HASH] = _ternary(should_swap, candidate_hash, crh);
+    () = #unspill(candidate_jump);
+    [:u64 vargs + 8 * CURR_JUMP] = _ternary(should_swap, candidate_jump, curr_jump);
+
+    // Advance slot position and probe counters.
+    // CURR_SLOT_HASH tracks our absolute position in the hash table.
+    // TRACE counts non-empty slots visited (for statistics).
+    // CURR_JUMP increments as we move further from the ideal position,
+    // but only while insertion is still in progress.
+    () = #unspill(search_started);
+    tmp = (64u)search_started;
+    [:u64 vargs + 8 * CURR_SLOT_HASH] += tmp;
+    reg u64 inc;
+    inc = (64u)insert_complete;
+    inc = !inc;
+    () = #unspill(search_started);
+    tmp = (64u)search_started;
+    inc &= tmp;
+    [:u64 vargs + 8 * TRACE] += inc;
+    [:u64 vargs + 8 * CURR_JUMP] += inc;
+  }
+  return block_data, msf;
+}
+
+// vargs layout for get_record — shares RECORD_SIZE_QWORDS and START_INDEX
+// with robinhood (same offsets 0 and 1), remaining fields differ.
+// param int RECORD_SIZE_QWORDS = 0;
+// param int START_INDEX = 1;
+param int SEARCH_COMPLETE = 2;  // set to 1 once the key is found (or empty slot hit)
+param int OUT_RECORD = 3;       // pointer to output buffer for the found record
+param int KEY = 4;              // the key to search for
+
+// Oblivious record lookup within one ORAM block.
+//
+// Scans every record slot (from START_INDEX) looking for a record whose
+// key matches KEY, or an empty slot (which proves the key isn't in the
+// table, since Robin Hood hashing maintains contiguous probe chains).
+//
+// On match or empty: copies the record to OUT_RECORD and sets
+// SEARCH_COMPLETE.  All slots are visited regardless for constant-time.
+inline
+fn get_record(
+  reg ptr u64[BLOCK_DATA_SIZE_QWORDS] block_data,
+  reg uptr vargs,
+  #msf reg u64 msf
+) -> reg ptr u64[BLOCK_DATA_SIZE_QWORDS], #msf reg u64
+{
+  reg uptr out_record;
+  reg u64 key start_index tmp search_complete;
+  reg u8 search_started should_copy cond;
+  reg bool b;
+  inline int candidate_record records_per_block i;
+  
+  vargs = vargs;
+  records_per_block = BLOCK_DATA_SIZE_QWORDS / RECORD_SIZE;
+
+  for i = 0 to records_per_block
+  {
+    candidate_record = RECORD_SIZE * i;
+
+    start_index = [:u64 vargs + 8 * START_INDEX];
+    b = start_index <= i;
+    search_started = #SETcc(b);
+
+    key = [:u64 vargs + 8 * KEY];
+    should_copy, block_data = record_empty_or_matches(block_data, key, candidate_record);
+    should_copy &= search_started;
+    search_complete = [:u64 vargs + 8 * SEARCH_COMPLETE];
+    cond = (8u)search_complete;
+    cond = !cond;
+    should_copy &= cond;
+
+    #declassify out_record = [:u64 vargs + 8 * OUT_RECORD];
+    out_record = #protect(out_record, msf);
+    cond_copy_record_src_stack(should_copy, out_record, block_data[candidate_record:RECORD_SIZE]);
+
+    tmp = (64u)should_copy;
+    [:u64 vargs + 8 * SEARCH_COMPLETE] |= tmp;
+  }
+
+  return block_data, msf;
+}
+} // namespace Accessor

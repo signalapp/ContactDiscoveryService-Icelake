@@ -1,0 +1,151 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+from ENV require "params.jinc"
+
+// `tree_path` creates map from the integers from 0 to 2^L - 1 to the
+// nodes of a binary tree of height L by performing an in-order traversal.
+// Note that with this
+//  * even numbers are the leaves. We call this level 0.
+//  * numbers that are 1 mod 4 are on the next level - level 1
+//  * numbers that are 3 mod 8 are on level 2
+//  * and so on... numbers that are (2^k - 1) mod 2^(k+1) are on level k
+//  * the root is the single node at level L-1: 2^(L-1)-1
+//
+// Based on that characterisation we will refer to 2^(k+1) as the `level_modulus`
+// and we will refer to (2^k - 1) as the `level_residue` for level k. All items on
+// level k are congruent to `level_residue` mod `level_modulus`.
+//
+// In path ORAM, memory blocks are assigned to leaves, i.e. even numbers, and
+// a `tree_path` is a path to root from this leaf.
+
+// We have two views of a node in a binary tree: in-order numbering or coordinates.
+// We can represent the location of a node in the tree by giving the level (leaves
+// are level 0) and the offset in that level.
+
+namespace TreePath {
+// struct tree_path field indices (in u64 units)
+param int LENGTH = 0;
+param int VALUES = 1;
+// Note: tree_path uses a flexible array member, so no NUM_U64S
+
+// Return the tree level of node n.  Level 0 = leaves (even numbers).
+// Uses the bit trick: level(n) = count_trailing_zeros(~n).
+inline
+fn level(
+  reg u64 n
+) -> reg u64
+{
+  reg u64 v;
+  v = n;
+  v = !v;
+  _, _, _, _, _, v = #TZCNT(v);
+  return v;
+}
+
+// Convert in-order node number to its offset within its level.
+// offset = (val - level_residue) / level_modulus
+inline
+fn coords_for_val(
+  reg u64 val
+) -> reg u64
+{
+  reg u64 level lmod lres;
+  level = level(val);
+  level = #LEA(level + 1);
+  lmod = 1;
+  _, _, _, _, _, lmod = #SHL(lmod, level);
+  lres = lmod;
+  lres >>= 1;
+  lres = lres - 1;
+  val = val;
+  val -= lres;
+  _, _, _, _, _, val = #SHR(val, level);
+  return val;
+}
+
+// Inverse of coords_for_val: given (level, offset), return the in-order node number.
+// val = offset * level_modulus + level_residue
+inline
+fn node_val(
+  reg u64 level offset
+) -> reg u64
+{
+  reg u64 lmod lres l1;
+  l1 = #LEA(level + 1);
+  lmod = (64u)1;
+  _, _, _, _, _, lmod = #SHL(lmod, l1);
+  lres = lmod;
+  lres >>= 1;
+  lres = lres - 1;
+  lmod *= offset;
+  lmod += lres;
+  return lmod;
+}
+
+// Compute the path from `leaf` to the root and store it in `t`.
+// t->values[0] = leaf, t->values[i] = parent of t->values[i-1].
+// Each step: the parent's offset is the child's offset >> 1, then
+// convert back to in-order numbering with node_val.
+inline
+fn update(
+  reg uptr t,
+  reg u64 leaf,
+  #msf reg u64 msf
+) -> #msf reg u64
+{
+  reg u64 offset root_level level;
+  reg bool b;
+
+  // path length is public, it's safe to declassify this value
+  #declassify root_level = [:u64 t + LENGTH * 8];
+  root_level = #protect(root_level, msf);
+  root_level -= 1;
+
+  offset = coords_for_val(leaf);
+  t = #LEA(t + 8);
+  [:u64 t] = leaf;
+  level = 1;
+  while {b = level <= root_level; } (b) {
+    msf = #update_msf(b, msf);
+    offset >>= 1;
+    [:u64 t + 8 * level] = node_val(level, offset);
+    level = #LEA(level + 1);
+  }
+  msf = #update_msf(!b, msf);
+  return msf;
+}
+
+// Return the smallest leaf in the subtree rooted at `val`.
+// lower_bound = val - (2^level - 1)
+inline
+fn lower_bound(
+  reg u64 val
+) -> reg u64
+{
+  reg u64 l step;
+  l = level(val);
+  val = val;
+  step = 1;
+  _, _, _, _, _, step = #SHL(step, l);
+  step -= 1;
+  step = val - step;
+  return step;
+}
+
+// Return the largest leaf in the subtree rooted at `val`.
+// upper_bound = val + (2^level - 1)
+inline
+fn upper_bound(
+  reg u64 val
+) -> reg u64
+{
+  reg u64 l step;
+  l = level(val);
+  step = 1;
+  _, _, _, _, _, step = #SHL(step, l);
+  step -= 1;
+  step += val;
+  return step;
+}
+} // namespace TreePath

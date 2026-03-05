@@ -26,6 +26,11 @@
 
 typedef struct bucket_store bucket_store;
 
+// Jasmin-exported layout functions (source of truth for struct bucket_store layout)
+extern size_t bucket_store_sizeof_jazz(void);
+extern size_t bucket_store_size_bytes_offset_jazz(void);
+extern size_t bucket_store_data_offset_jazz(void);
+
 // Create a path ORAM bucket store with capacity for a tree with `num_levels` levels,
 // i.e. 2^num_levels - 1 tree nodes and 2^(num_levels - 1) leaf nodes/pathORAM positions.
 bucket_store *bucket_store_create(size_t num_levels);
@@ -41,12 +46,12 @@ struct block
     u64 data[BLOCK_DATA_SIZE_QWORDS];
 };
 
-u64 bucket_store_root(const bucket_store *bucket_store);
-size_t bucket_store_num_levels(const bucket_store *bucket_store);
-// The capacity of the LEAF bucket ids - internal buckets are for path ORAM use only
-size_t bucket_store_capacity_bytes(const bucket_store *bucket_store);
-size_t bucket_store_num_leaves(const bucket_store *bucket_store);
+// The number of 64-bit ints the block will hold
+size_t bucket_store_block_data_size(bucket_store *bucket_store);
 
+bool block_is_empty(block block);
+
+#ifdef IS_TEST
 /**
  * @brief Read all blocks, including empty ones, from a bucket into a buffer
  * 
@@ -54,7 +59,7 @@ size_t bucket_store_num_leaves(const bucket_store *bucket_store);
  * @param bucket_id ID of bucket to read
  * @param bucket_data buffer where blocks will be written
  */
-void bucket_store_read_bucket_blocks(bucket_store *bucket_store, u64 bucket_id, block bucket_data[BLOCKS_PER_BUCKET]);
+extern void bucket_store_read_bucket_blocks_jazz(bucket_store *bucket_store, u64 bucket_id, block bucket_data[BLOCKS_PER_BUCKET]);
 
 /**
  * @brief Write a full set of blocks to a buffer. Must write `BLOCKS_PER_BUCKET` blocks, partial writes
@@ -64,14 +69,8 @@ void bucket_store_read_bucket_blocks(bucket_store *bucket_store, u64 bucket_id, 
  * @param bucket_id ID of bucket to write
  * @param bucket_data Array of `BLOCKS_PER_BUCKET` blocks that will be stored in `bucket_store`
  */
-void bucket_store_write_bucket_blocks(bucket_store *bucket_store, u64 bucket_id, const block bucket_data[BLOCKS_PER_BUCKET]);
+extern void bucket_store_write_bucket_blocks_jazz(bucket_store *bucket_store, u64 bucket_id, const block bucket_data[BLOCKS_PER_BUCKET]);
 
-// The number of 64-bit ints the block will hold
-size_t bucket_store_block_data_size(bucket_store *bucket_store);
-
-bool block_is_empty(block block);
-
-#ifdef IS_TEST
 void private_bucket_store_tests();
 #endif // IS_TEST
 #endif // CDS_PATH_ORAM_BUCKET_H

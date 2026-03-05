@@ -17,6 +17,7 @@ untrust/
 *.o
 *.a
 *.test
+!jasmin.test/
 *.test.out
 *.valgrind
 aflfuzz/

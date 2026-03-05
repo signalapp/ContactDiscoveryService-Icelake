@@ -1,0 +1,84 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// The position map stores the current leaf assignment for every ORAM block.
+// It has two implementations:
+//   - Linear scan (for small maps): a flat u32 array, scanned obliviously.
+//   - Recursive ORAM (for large maps): a smaller Path ORAM whose blocks
+//     each hold many position entries (u32-packed).
+//
+// Both share a common struct prefix (2 u64s for type tag + capacity),
+// followed by implementation-specific fields starting at IMPL_OFFSET.
+
+namespace PositionMap {
+
+param int IMPL_OFFSET = 2; // offset past the common header to implementation fields
+// impl position map (linear scan variant)
+param int DATA = 1; // *data (flat u32 array) or *oram (recursive ORAM)
+// oram position map (recursive ORAM variant) -- constant-time division params
+param int EPB_CT_M_P = 3;  // magic multiplier for entries_per_block division
+param int EPB_CT_SH1 = 4;  // shift 1
+param int EPB_CT_SH2 = 5;  // shift 2
+
+// Compute which ORAM block holds the position for a given block_id.
+// block_id_for_index = block_id / entries_per_block, computed in
+// constant time using precomputed magic-number division parameters.
+inline
+fn block_id_for_index_ct(
+  reg uptr oram_position_map,
+  reg u64 index
+) -> reg u64
+{
+  reg u64 offset;
+  reg u64 m_prime sh1 sh2;
+
+  m_prime = [:u64 oram_position_map + 8 * EPB_CT_M_P];
+  sh1 = [:u64 oram_position_map + 8 * EPB_CT_SH1];
+  sh2 = [:u64 oram_position_map + 8 * EPB_CT_SH2];
+  offset = _ct_div(index, m_prime, sh1, sh2);
+  return offset;
+}
+
+require "oram_position_map.jinc"
+
+// Read the current position for block_id and replace it with `position`.
+// Dispatches to the recursive ORAM position map (oram_position_map_access).
+// Returns (abort, prev_position, msf).
+inline
+fn read_then_set(
+  #public reg uptr position_map,
+  #secret reg u64 block_id,
+  #secret reg u64 position,
+  #msf reg u64 msf
+) -> reg u32, #secret reg u64, #msf reg u64
+{
+  reg uptr oram_position_map;
+  reg u64 prev_position;
+  reg u32 abort;
+  oram_position_map = #LEA(position_map + 8 * IMPL_OFFSET);  // *oram_position_map
+  abort, prev_position, msf = oram_position_map_access(oram_position_map, block_id, position, msf, WRITE_ACCESSOR);
+  abort = abort;
+  return abort, prev_position, msf;
+}
+
+// Read the current position for block_id without changing it.
+// Passes a dummy value of 0 as the new position and uses READ_ACCESSOR.
+inline
+fn read(
+  #public reg uptr position_map,
+  #secret reg u64 block_id,
+  #msf reg u64 msf
+) -> reg u32, #secret reg u64, #msf reg u64
+{
+  reg uptr oram_position_map;
+  reg u64 position;
+  reg u64 dummy;
+  reg u32 abort;
+
+  _, _, _, _, _, dummy = #set0();
+  oram_position_map = #LEA(position_map + 8 * IMPL_OFFSET);  // *oram_position_map
+  abort, position, msf = oram_position_map_access(oram_position_map, block_id, dummy, msf, READ_ACCESSOR);
+  abort = abort;
+  return abort, position, msf;
+}
+} // namespace PositionMap

@@ -92,17 +92,9 @@ static shard* _create(ohtable* table, u64 lb, u64 ub, size_t record_size_qwords)
     return shard;
 }
 
-shard* shard_create_for_available_mem(u64 lb, u64 ub, size_t record_size_qwords, size_t available_bytes, double load_factor, size_t stash_overflow_size, entropy_func getentropy) {
-    available_bytes -= (sizeof(shard) + queue_size_bytes());
-    ohtable* table = ohtable_create_for_available_mem(record_size_qwords, available_bytes, load_factor, stash_overflow_size, getentropy);
-    shard* shard = _create(table, lb, ub, record_size_qwords);
-    shard_add_zero_record(shard);
-    return shard;
-}
-
-shard *shard_create(u64 lb, u64 ub, size_t record_size_qwords, size_t record_capacity, size_t stash_overflow_size, entropy_func getentropy)
+shard *shard_create(u64 lb, u64 ub, size_t record_size_qwords, entropy_func getentropy)
 {
-    ohtable* table = ohtable_create(record_capacity, record_size_qwords, stash_overflow_size, getentropy);
+    ohtable* table = ohtable_create(record_size_qwords, getentropy);
     shard* shard = _create(table, lb, ub, record_size_qwords);
     shard_add_zero_record(shard);
     return shard;
@@ -318,7 +310,7 @@ static void* consumer_mt(void* v_shard) {
 
 int test_shard_receives_inserts_mt()
 {
-    shard *shard = shard_create(0, UINT64_MAX, RECORD_SIZE_QWORDS, 1000000, TEST_STASH_SIZE, getentropy);
+    shard *shard = shard_create(0, UINT64_MAX, RECORD_SIZE_QWORDS, getentropy);
     pthread_t cons_tid;
     pthread_create(&cons_tid, NULL, consumer_mt, shard);
 
@@ -347,7 +339,7 @@ int test_shard_receives_inserts_mt()
 
 int test_shard_receives_queries_mt()
 {
-    shard *shard = shard_create(0, UINT64_MAX, RECORD_SIZE_QWORDS, 1000000, TEST_STASH_SIZE, getentropy);
+    shard *shard = shard_create(0, UINT64_MAX, RECORD_SIZE_QWORDS, getentropy);
     pthread_t cons_tid;
     pthread_create(&cons_tid, NULL, consumer_mt, shard);
 
@@ -376,7 +368,7 @@ int test_shard_receives_queries_mt()
 
 int test_shard_handle_request()
 {
-    shard *shard = shard_create(0, UINT64_MAX, RECORD_SIZE_QWORDS, 1000000, TEST_STASH_SIZE, getentropy);
+    shard *shard = shard_create(0, UINT64_MAX, RECORD_SIZE_QWORDS, getentropy);
 
     // first try the query and see that it isn't there
     {

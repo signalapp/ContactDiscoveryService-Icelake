@@ -1,0 +1,204 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+from ENV require "params.jinc"
+
+// --- Linear-scan position map ---
+// For the leaf level of the recursive position map (small enough to scan).
+// Positions are stored as u32 values in a flat array of POSITION_MAP_SIZE_0
+// entries.  All operations scan the entire array obliviously.
+
+// Oblivious read-then-set: scan the entire position map, swapping in
+// `position` at `block_id` and returning the previous value.
+// Every iteration touches every slot identically (no early exit).
+inline
+fn _scan_position_map_set(
+  #public reg uptr scan_position_map_data,
+  #secret reg u64 block_id position,
+  #msf reg u64 msf
+) -> reg u64, #msf reg u64
+{
+  reg u64 i prev_position_64;
+  reg u32 prev_position;
+  reg u8 cond;
+  reg bool b wcond;
+
+  prev_position = position;
+  // linear scan of array so that every access looks the same.
+  i = 0;
+  while { wcond = i < POSITION_MAP_SIZE_0; } (wcond) {
+    msf = #update_msf(wcond, msf);
+    b = (64u)i == block_id;
+    cond = #SETcc(b);
+    
+    reg u32 tmp va;
+    va = [:u32 scan_position_map_data];
+    tmp = _ternary32(cond, prev_position, va);
+    [:u32 scan_position_map_data] = tmp;
+    prev_position = prev_position;
+    prev_position = _ternary32(cond, va, prev_position);
+    prev_position = prev_position;
+
+    scan_position_map_data = #LEA(scan_position_map_data + 4);
+    i = #LEA(i + 1);
+  }
+  msf = #update_msf(!wcond, msf);
+  prev_position_64 = (64u)prev_position;
+  return prev_position_64, msf;
+}
+
+// Wrapper: extract the data pointer from the position_map struct and scan.
+inline
+fn _read_then_set_linear(
+  reg uptr position_map,
+  reg u64 block_id,
+  reg u64 position,
+  #msf reg u64 msf
+) -> reg u64, #msf reg u64
+{
+  reg uptr scan_position_map_data;
+  reg u64 x;
+  #declassify scan_position_map_data = [position_map + 8 * (IMPL_OFFSET + DATA)];  // *data
+  scan_position_map_data = #protect(scan_position_map_data, msf);
+  x, msf = _scan_position_map_set(scan_position_map_data, block_id, position, msf);
+  return x, msf;
+}
+
+// --- Recursive ORAM position map ---
+// For large position maps, positions are stored in ORAM blocks.  Each block
+// holds BLOCK_DATA_SIZE_QWORDS*2 u32 entries.  To read/write a single
+// position entry, we perform a full Path ORAM access on this smaller tree,
+// using the partial accessors (read_partial / write_partial_out) to
+// obliviously touch exactly one u32 within the block.
+//
+// This is the "inner" ORAM access -- it uses the linear-scan position map
+// (_read_then_set_linear) so there is no further recursion.
+
+// Path ORAM access on the position-map ORAM.  `block_id` is the ORAM block
+// containing the target entry, `start` is the u32 index within that block,
+// and `data` is the new value to write (ignored for READ_ACCESSOR).
+// Returns (abort, prev_data, msf) where prev_data is the old u32 value.
+inline
+fn _oram_access(
+  reg uptr oram,
+  reg u64 block_id start,
+  reg u64 data,
+  #msf reg u64 msf,
+  inline int t
+) -> #public reg u32, reg u64, #msf reg u64
+{
+  stack u64[DECRYPTED_BLOCK_SIZE_QWORDS] target_block_s;
+  reg ptr u64[DECRYPTED_BLOCK_SIZE_QWORDS] target_block;
+  // standard variables
+  reg u64 new_position x prev_data;
+  // pointer variables
+  reg uptr stash path position_map bucket_store path_blocks;
+  // temporary variables
+  reg u64 bucket_id;
+  reg u32 abort;
+  reg bool b;
+  inline int i max_position;
+
+  () = #spill(start, data);
+  target_block = target_block_s;
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { target_block[i] = -1; }
+  max_position = (64u)(1 << (PATH_LENGTH_0 - 1));
+
+  new_position, msf = _random_mod_by_pow_of_2(msf, max_position);
+  new_position = new_position;
+
+  position_map, msf = position_map_ptr(oram, msf);
+  () = #spill(oram, target_block, block_id, new_position);
+  x, msf = _read_then_set_linear(position_map, block_id, new_position, msf);
+  x *= 2;
+  
+  () = #unspill(oram, target_block, block_id, new_position);
+  oram = #protect(oram, msf);
+  target_block = #protect_ptr(target_block, msf);
+  path, msf = path_ptr(oram, msf);
+  msf = TreePath::update(path, x, msf);
+
+  new_position *= 2;
+  () = #spill(oram);
+  target_block, msf = read_path_for_block(oram, path, block_id, target_block, new_position, msf, PATH_LENGTH_0);
+  () = #spill(path);
+  () = #unspill(start, data);
+  #inline if (t == READ_ACCESSOR) {
+    target_block[2:BLOCK_DATA_SIZE_QWORDS], prev_data =
+      Accessor::read_partial(target_block[2:BLOCK_DATA_SIZE_QWORDS], start);
+  } else {
+    target_block[2:BLOCK_DATA_SIZE_QWORDS], prev_data =
+      Accessor::write_partial_out(target_block[2:BLOCK_DATA_SIZE_QWORDS], start, data);
+  }
+  () = #spill(prev_data);
+
+  () = #unspill(oram);
+  oram = #protect(oram, msf);
+  stash, msf = stash_ptr(oram, msf);
+  () = #spill(oram);
+  abort, target_block, msf = Stash::add_block(stash, target_block, msf);
+
+  b = abort == 0;
+  if (b) {
+    msf = #update_msf(b, msf);
+    () = #spill(stash);
+    () = #unspill(path);
+    path = #protect(path, msf);
+    () = #spill(path);
+    msf = Stash::build_path(stash, path, msf, PATH_LENGTH_0);
+    () = #unspill(oram);
+    oram = #protect(oram, msf);
+
+    bucket_store, msf = bucket_store_ptr(oram, msf);
+    path_blocks, msf = Stash::path_blocks_ptr(stash, msf);
+    () = #unspill(path);
+    path = #protect(path, msf);
+    for i = 0 to PATH_LENGTH_0
+    {
+      #declassify bucket_id = [:u64 path + 8 + 8 * i];
+      bucket_id = #protect(bucket_id, msf);
+      #update_after_call msf = BucketStore::write_bucket_blocks(bucket_store, bucket_id, path_blocks, msf);
+      path = #protect(path, msf);
+      bucket_store = #protect(bucket_store, msf);
+      path_blocks = #protect(path_blocks, msf);
+      path_blocks += BLOCKS_PER_BUCKET * DECRYPTED_BLOCK_SIZE_QWORDS * 8;
+    }
+  } else {
+    msf = #update_msf(!b, msf);
+  }
+  () = #unspill(prev_data);
+  abort = #protect_32(abort, msf);
+  return abort, prev_data, msf;
+}
+
+// Top-level entry point for the recursive ORAM position map.
+// Translates a logical block_id into (oram_block_id, index_within_block)
+// using constant-time division/modulo, then dispatches to _oram_access.
+inline
+fn oram_position_map_access(
+  #public reg uptr oram_position_map,
+  #secret reg u64 block_id,
+  #secret reg u64 position,
+  #msf reg u64 msf,
+  inline int t
+) -> #public reg u32, #secret reg u64, #msf reg u64
+{
+  reg uptr oram;
+  reg u64 m_prime sh1 sh2 idx_in_block bid_for_index prev_position;
+  reg u32 abort;
+
+  m_prime = [:u64 oram_position_map + 8 * EPB_CT_M_P];
+  sh1 = [:u64 oram_position_map + 8 * EPB_CT_SH1];
+  sh2 = [:u64 oram_position_map + 8 * EPB_CT_SH2];
+
+  idx_in_block = _ct_mod(block_id, BLOCK_DATA_SIZE_QWORDS * 2, m_prime, sh1, sh2);
+
+  bid_for_index = block_id_for_index_ct(oram_position_map, block_id);
+  #declassify oram = [:u64 oram_position_map + 8 * DATA]; // *oram
+  oram = #protect(oram, msf);
+
+  abort, prev_position, msf = _oram_access(oram, bid_for_index, idx_in_block, position, msf, t);
+  abort = abort;
+
+  return abort, prev_position, msf;
+}

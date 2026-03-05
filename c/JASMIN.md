@@ -45,18 +45,79 @@ fn odd_even_msort_uint64s(
 }
 ```
 
+## Function Naming Conventions
+
+Exported Jasmin functions follow one of two naming patterns depending on
+whether C retains a wrapper around the export.
+
+### Direct replacement (no suffix)
+
+When the Jasmin function **replaces** the C function entirely — same name, same
+signature, no C wrapper — the export uses the canonical name with no suffix.
+The C function is deleted and callers link directly to the Jasmin symbol.
+
+Examples:
+- `halfsiphash` — the Jasmin export *is* the public API
+- `odd_even_msort_uint64s` — replaces the former C `bitonic_sort_uint64s`
+  (algorithm changed, so the name changed too)
+
+### Wrapper pattern (`_jazz` suffix)
+
+When C retains a **thin wrapper** around the Jasmin export — for example to
+update statistics, perform error handling, or adapt calling conventions — the
+Jasmin export takes a `_jazz` suffix to distinguish it from the C public API:
+
+```c
+// C wrapper: public API
+error_t oram_get(oram* oram, u64 block_id, u64 buf[]) {
+    error_t err = oram_get_jazz(oram, block_id, buf);  // Jasmin impl
+    oram->statistics.accesses++;
+    return err;
+}
+```
+
+The suffix signals: "this is the Jasmin implementation; the C function of the
+same base name is the caller-facing API."
+
+### Struct layout validators (`_jazz` suffix)
+
+Functions that export Jasmin's view of struct layout — sizes and field offsets —
+always use the `_jazz` suffix. These exist purely for cross-language validation
+and have no C counterpart:
+
+```c
+// In C, validated at startup:
+CHECK(offsetof(ohtable, capacity) == ohtable_capacity_offset_jazz());
+CHECK(sizeof(ohtable) == ohtable_sizeof_jazz());
+```
+
+The `_jazz` suffix here means: "this value comes from Jasmin's struct layout
+definition."
+
+### Summary
+
+| Scenario | Suffix | Example |
+|----------|--------|---------|
+| Jasmin *is* the public API | none | `halfsiphash(...)` |
+| C wrapper around Jasmin impl | `_jazz` | `oram_get_jazz(...)` |
+| Struct layout validator | `_jazz` | `oram_sizeof_jazz()` |
+
 ## Parameter Sets (prod/test)
 
-Some modules use different compile-time parameters for production and test builds. These are stored in separate `params.jinc` files:
+Modules use different compile-time parameters for production and test builds.
+All parameters live in a single shared `params.jinc` per build variant:
 
-- `c/path_oram/prod/params.jinc` - production parameters (larger ORAM)
-- `c/path_oram/test/params.jinc` - test parameters (smaller ORAM for faster tests)
+- `c/jasmin.prod/params.jinc` — production parameters (larger ORAM, more shards)
+- `c/jasmin.test/params.jinc` — test parameters (smaller sizes for faster tests)
 
-Similarly for sharded_ohtable:
-- `c/sharded_ohtable/prod/params.jinc` - 16 shards for production
-- `c/sharded_ohtable/test/params.jinc` - 3 shards for testing
+Source files include parameters via the build-system-defined `ENV` include root:
 
-The appropriate `params.jinc` is included via a build-system-defined include path (e.g., `from SOENV require "params.jinc"`).
+```jasmin
+from ENV require "params.jinc"
+```
+
+The include roots are set globally in `Makefile.base` via `JASMIN_PROD_FLAGS`
+and `JASMIN_TEST_FLAGS`, so most modules need no per-module build configuration.
 
 ## Using `osort` (Oblivious Sort)
 
@@ -317,6 +378,25 @@ nm1 -= 1;
 _, _, _, _, _, result = #LZCNT(nm1);
 ```
 
+### In-Place NOT for Boolean Toggles
+
+The x86 `NOT` instruction operates in-place, so `b = !a` requires `a` and `b` to be in the same physical register. Declaring them as separate variables causes a register allocation conflict:
+
+```jasmin
+// Does NOT compile when register pressure is high:
+reg u8 is_assigned not_assigned;
+not_assigned = !is_assigned;
+
+// Correct — toggle in-place, using comments to track meaning:
+reg u8 is_assigned;
+is_assigned = !is_assigned;  // temporarily holds !is_assigned
+// ... use is_assigned as "not_assigned" ...
+is_assigned = !is_assigned;  // restore is_assigned
+is_assigned |= assignable;
+```
+
+This pattern appears in the stash bucket-assignment functions wherever a boolean needs to be temporarily inverted.
+
 ### CLI Flag Syntax for Include Paths
 
 `jasminc` requires a space between `-I` and the identifier binding: `-I UTIL=path/to/util`. The no-space form (`-IUTIL=...`) is rejected as an unknown option. `jasmin-ct` accepts both forms.
@@ -333,7 +413,34 @@ The self-assignment is used for re-assigning values into other registers. Common
 
 ## Randomness
 
-`#randombytes` is compiled to a function call to `__jasmin_syscall_randombytes__` which has to be linked afterwards. See the implementation in `c/path_oram/syscall`.
+`#randombytes` is compiled to a function call to `__jasmin_syscall_randombytes__` which must be provided at link time.
+
+### Current implementation
+
+The symbol is defined in `c/noise-c/src/backend/ref/dh-kyber.c:35` by mlkem-libjade (part of noise-c). It delegates to `noise_rand_bytes`. This definition is linked into every binary that uses noise-c:
+
+- **Test binaries** (`%.test`): always link `libnoise.a` (see `Makefile` rule `%.test: ... libnoise.a`)
+- **Enclave binaries** (`enclave.bin`, `enclave.testbin`): always link `libnoise.a`
+
+### Name collision history
+
+Both mlkem-libjade (inside noise-c) and the Jasmin toolchain use `__jasmin_syscall_randombytes__` as the shim name. If you try to provide a second (non-weak) definition alongside noise-c, the linker will report a multiple-definition error. The solution is to rely exclusively on noise-c's definition rather than defining the symbol ourselves.
+
+### If noise-c is replaced or no longer provides this symbol
+
+You will need to provide the symbol yourself. Place the following in a new `.c` file compiled into the enclave library:
+
+```c
+#include <stdint.h>
+#include <openenclave/enclave.h>
+
+uint8_t* __jasmin_syscall_randombytes__(uint8_t* x, uint64_t xlen) {
+    oe_random(x, xlen);
+    return x;
+}
+```
+
+If noise-c is still linked alongside this new definition, mark it `__attribute__((weak))` so noise-c's strong definition wins — or remove noise-c's definition from `dh-kyber.c` instead.
 
 ## Security Annotations
 
@@ -356,3 +463,71 @@ Jasmin compiler takes a file as argument and it will compile all `export` funtio
 ### Calling Jasmin from C
 
 Exported Jasmin function can be imported in C, but not the other way around. To cleanly import Jasmin functions in C, developers have to declare an `extern` function in C and link the outputted assembly (or binary converted) from the Jasmin compiler.
+
+## Jasmin Toolchain Version Management
+
+The Jasmin compiler (`jasminc`) and constant-time checker (`jasmin-ct`) are
+installed via OPAM inside the Docker build environment. To ensure deterministic
+builds, we pin both the jasmin version and all of its transitive OCaml
+dependencies using an OPAM lockfile.
+
+### Files
+
+- `c/docker/cds-jasmin.opam` -- declares the jasmin version we depend on.
+- `c/docker/cds-jasmin.opam.locked` -- pins every transitive dependency to an
+  exact version. Generated by `opam lock`.
+- `c/docker/Dockerfile` -- installs jasmin via `opam install --locked`.
+
+Note: the Docker image installs `rsync` because OPAM uses it to fetch
+locally pinned packages (the wrapper lives in `/home/signal/cds-jasmin`). If
+you customize the base image, ensure `rsync` is present or OPAM will fail
+when installing the local `cds-jasmin` package.
+
+The wrapper package is named `cds-jasmin` (not `jasmin`) so that `opam install
+--locked` does not shadow the real `jasmin` package in the OPAM repository.
+
+### Bumping the Jasmin Version
+
+1. Update the version constraint in `cds-jasmin.opam`:
+   ```
+   depends: [
+     "jasmin" {= "NEW_VERSION"}
+   ]
+   ```
+
+2. Regenerate the lockfile. From the `c/docker/` directory, run:
+   ```bash
+   docker run --rm \
+     -v "$(pwd)/cds-jasmin.opam:/work/cds-jasmin.opam" \
+     amd64/debian:bookworm bash -c '
+       apt-get update -qq && \
+       apt-get install -y -qq opam rsync build-essential m4 bubblewrap \
+         libgmp-dev libpcre3-dev libmpfr-dev libppl-dev autoconf \
+         unzip pkg-config > /dev/null 2>&1 && \
+       export OPAMYES=1 OPAMJOBS=2 && \
+       opam init -y --disable-sandboxing -c ocaml-base-compiler.4.12.0 \
+         > /dev/null 2>&1 && \
+       eval $(opam env) && \
+       opam install -y jasmin.NEW_VERSION > /dev/null 2>&1 && \
+       cd /work && \
+       opam lock cds-jasmin 2>&1 && \
+       cat cds-jasmin.opam.locked
+     '
+   ```
+   Copy the output into `cds-jasmin.opam.locked`.
+
+    Do not rename the files; the Dockerfile expects
+    `cds-jasmin.opam` and `cds-jasmin.opam.locked` under `c/docker/`.
+
+   Alternatively, run `make dockersh`, then inside the container:
+   ```bash
+   eval $(opam env)
+   cd /path/to/c/docker
+   opam lock cds-jasmin
+   ```
+
+3. Rebuild the Docker image: `make docker_all` (or just `make dockersh` to
+   verify the build).
+
+4. Run `make docker_tests` to confirm the new compiler version works with all
+   existing Jasmin code.

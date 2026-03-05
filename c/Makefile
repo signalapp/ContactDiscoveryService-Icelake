@@ -39,6 +39,15 @@ install: sign libjnishim.so
 	cp -fv enclave-debug.signed $(INSTALL_DIR)/enclave-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),debug).signed
 	cp -fv libjnishim.so $(INSTALL_DIR)/libjnishim-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),debug).so
 
+# install_test: Like install, but builds the enclave with test-sized Jasmin parameters
+# (small ORAM trees, NUM_SHARDS=3) instead of production sizes.  Used by Java
+# integration tests which don't need -- and can't afford -- the >70GB prod ORAM.
+.PHONY: install_test
+install_test: enclave.testsigned libjnishim.so
+	mkdir -pv $(INSTALL_DIR)
+	cp -fv enclave.testsigned $(INSTALL_DIR)/enclave-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),test).signed
+	cp -fv libjnishim.so $(INSTALL_DIR)/libjnishim-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),test).so
+
 cdsi.h cdsi.c: ../src/main/proto/cdsi.proto
 	cd proto && pbtools generate_c_source ../../src/main/proto/cdsi.proto
 

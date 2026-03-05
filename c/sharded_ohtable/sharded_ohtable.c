@@ -257,36 +257,17 @@ sharded_ohtable* _create(size_t record_size_qwords, size_t num_shards, u8 hash_k
     return result;
 }
 
-sharded_ohtable* sharded_ohtable_create_for_available_mem(size_t record_size_qwords, size_t num_shards, u8 hash_key[static 8], size_t available_bytes, double load_factor, size_t stash_overflow_size, entropy_func getentropy) {
-
-
-    sharded_ohtable* result = _create(record_size_qwords, num_shards, hash_key);
-    u64 step_size = result->ct_divisor_step;
-
-    size_t per_shard_available_bytes = (available_bytes - sizeof(*result)) / num_shards;
-
-    for (size_t i = 0; i < num_shards; ++i)
-    {
-        u64 lb = i * step_size;
-        u64 ub = (i == num_shards - 1) ? UINT64_MAX : (i + 1) * step_size;
-        result->shards[i] = shard_create_for_available_mem(lb, ub, record_size_qwords, per_shard_available_bytes, load_factor, stash_overflow_size, getentropy);
-    }
-
-    return result;
-}
-
-sharded_ohtable *sharded_ohtable_create(size_t record_size_qwords, size_t record_capacity, size_t num_shards, u8 hash_key[static 8], size_t stash_overflow_size, entropy_func getentropy)
+sharded_ohtable *sharded_ohtable_create(size_t record_size_qwords, size_t num_shards, u8 hash_key[static 8], entropy_func getentropy)
 {
 
     sharded_ohtable* result = _create(record_size_qwords, num_shards, hash_key);
     u64 step_size = result->ct_divisor_step;
 
-    size_t shard_capacity = 1 + record_capacity / num_shards;
     for (size_t i = 0; i < num_shards; ++i)
     {
         u64 lb = i * step_size;
         u64 ub = (i == num_shards - 1) ? UINT64_MAX : (i + 1) * step_size;
-        result->shards[i] = shard_create(lb, ub, record_size_qwords, shard_capacity, stash_overflow_size, getentropy);
+        result->shards[i] = shard_create(lb, ub, record_size_qwords, getentropy);
     }
 
     return result;

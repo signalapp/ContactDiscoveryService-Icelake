@@ -42,7 +42,7 @@ class EnclaveTest {
 
   private Enclave enclave;
 
-  private static final int SHARD_COUNT = 16;
+  private static final int SHARD_COUNT = 3;  // must match Jasmin c/jasmin.test/params.jinc NUM_SHARDS
 
   @BeforeEach
   void setUp() throws EnclaveException, IOException {

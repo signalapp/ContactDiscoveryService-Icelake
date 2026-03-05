@@ -92,7 +92,6 @@ static inline void cond_obv_swap_u64(bool cond, u64 *a, u64 *b) {
     cond_obv_cpy_u64(cond, &tmp, a);
     cond_obv_cpy_u64(cond, a, b);
     cond_obv_cpy_u64(cond, b, &tmp);
-
 }
 
 static inline u64 first_pow2_leq(u64 n) {

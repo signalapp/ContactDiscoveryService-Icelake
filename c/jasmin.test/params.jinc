@@ -1,0 +1,23 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// Compile-time parameters for test builds.
+// Shared by all Jasmin modules via the ENV include root.
+
+// sharded_ohtable
+param int NUM_SHARDS = 3;
+
+// path_oram / ohtable
+param int ENCRYPTED_BUCKET_SIZE = 4096; // 4KB
+param int DECRYPTED_BUCKET_SIZE = ENCRYPTED_BUCKET_SIZE;
+param int BLOCKS_PER_BUCKET = 3;
+
+param int DECRYPTED_BLOCK_SIZE_QWORDS = (DECRYPTED_BUCKET_SIZE / BLOCKS_PER_BUCKET) / 8;
+param int DECRYPTED_BLOCK_SIZE = DECRYPTED_BLOCK_SIZE_QWORDS * 8;
+param int UNROUNDED_BLOCK_DATA_SIZE_BYTES = (DECRYPTED_BLOCK_SIZE - 16);
+param int BLOCK_DATA_SIZE_QWORDS = (UNROUNDED_BLOCK_DATA_SIZE_BYTES / 8);
+param int BLOCK_DATA_SIZE = (BLOCK_DATA_SIZE_QWORDS * 8);
+
+param int PATH_LENGTH = 16;
+param int PATH_LENGTH_0 = 9;
+param int POSITION_MAP_SIZE_0 = 159;

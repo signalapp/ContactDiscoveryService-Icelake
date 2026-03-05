@@ -102,7 +102,7 @@ int test_insert_query_load()
     prepare_queries_and_inserts();
 
     TEST_LOG("creating table");
-    sharded_ohtable *table = sharded_ohtable_create(RECORD_SIZE_QWORDS, 5000000, NUM_SHARDS, hash_key, TEST_STASH_SIZE, getentropy);
+    sharded_ohtable *table = sharded_ohtable_create(RECORD_SIZE_QWORDS, NUM_SHARDS, hash_key, getentropy);
     pthread_t shard_tids[NUM_SHARDS];
     for (size_t i = 0; i < NUM_SHARDS; ++i)
     {
@@ -147,13 +147,12 @@ int test_large_load()
 {
     prepare_queries_and_inserts();
 
-    size_t record_capacity = 50000;
     size_t num_records_to_add = 25000;
     size_t num_blocks = 20;
     TEST_ASSERT(num_records_to_add % num_blocks == 0);
     size_t records_per_block = num_records_to_add / num_blocks;
 
-    sharded_ohtable *table = sharded_ohtable_create(RECORD_SIZE_QWORDS, record_capacity, NUM_SHARDS, hash_key, TEST_STASH_SIZE, getentropy);
+    sharded_ohtable *table = sharded_ohtable_create(RECORD_SIZE_QWORDS, NUM_SHARDS, hash_key, getentropy);
     pthread_t shard_tids[NUM_SHARDS];
     for (size_t i = 0; i < NUM_SHARDS; ++i)
     {
@@ -235,10 +234,8 @@ int test_create_for_mem()
 {
     prepare_queries_and_inserts();
 
-    size_t avail_mem = (1ul << 29);
-
-    // create a table for the memory
-    sharded_ohtable *table = sharded_ohtable_create_for_available_mem(RECORD_SIZE_QWORDS, NUM_SHARDS, hash_key, avail_mem, 1.6, TEST_STASH_SIZE, getentropy);
+    // create a table using simplified API (capacity is now a compile-time Jasmin param)
+    sharded_ohtable *table = sharded_ohtable_create(RECORD_SIZE_QWORDS, NUM_SHARDS, hash_key, getentropy);
     
     // make sure it works
     pthread_t shard_tids[NUM_SHARDS];

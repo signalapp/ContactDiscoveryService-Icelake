@@ -110,26 +110,40 @@ AFL_LDFLAGS= \
 JASMINC ?= jasminc
 JASMIN_CT ?= jasmin-ct
 
+JASMIN_SCT_SLICE=`(cat jasmin.slice 2>/dev/null || true) | while read func; do echo "--slice=$$func"; done`
+JASMIN_PROD_SLICE=`(cat jasmin.slice 2>/dev/null || true) | while read func; do echo "-slice=$$func"; done`
+
 JASMIN_TEST_FLAGS=\
-  -I SOENV=../jasmin.test.soenv \
+  -I ENV=$(BASEDIR)/jasmin.test \
 ##JASMIN_TEST_FLAGS
 JASMIN_PROD_FLAGS=\
-  -I SOENV=../jasmin.prod.soenv \
+  -I ENV=$(BASEDIR)/jasmin.prod \
 ##JASMIN_PROD_FLAGS
+
+JASMIN_TEST_CT_FLAGS=\
+  -g \
+## JASMIN_TEST_CT_FLAGS
+JASMIN_PROD_CT_FLAGS=\
+  $(JASMIN_PROD_SLICE) \
+## JASMIN_PROD_CT_FLAGS
 
 # Common flags used when invoking jasmin tools
 JASMIN_FLAGS= \
   -I UTIL=$(BASEDIR)/util/ \
   -I SIPHASH=$(BASEDIR)/halfsiphash/ \
+  -I OHTABLE=$(BASEDIR)/ohtable/ \
 ##JASMIN_FLAGS
 JASMIN_CT_FLAGS= \
   --infer \
   -IUTIL=$(BASEDIR)/util/ \
   -ISIPHASH=$(BASEDIR)/halfsiphash/ \
+  -IOHTABLE=$(BASEDIR)/ohtable/ \
 ##JASMIN_CT_FLAGS
 JASMIN_SCT_FLAGS= \
   --infer \
   --sct \
   -IUTIL=$(BASEDIR)/util/ \
   -ISIPHASH=$(BASEDIR)/halfsiphash/ \
+  -IOHTABLE=$(BASEDIR)/ohtable/ \
+  $(JASMIN_SCT_SLICE) \
 ##JASMIN_SCT_FLAGS

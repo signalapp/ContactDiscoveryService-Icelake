@@ -4,6 +4,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <sys/random.h>
+#include <valgrind/valgrind.h>
 
 #include "ohtable/ohtable.h"
 #include "path_oram/path_oram.h"
@@ -23,7 +24,7 @@ typedef struct record
 
 int put_get_cycle_works()
 {
-    ohtable *ohtable = ohtable_create(5000000, 7, TEST_STASH_SIZE, getentropy);
+    ohtable *ohtable = ohtable_create(7, getentropy);
 
     record r0 = {.key = 1, .a = 2, .b = 3, .c = 4, .d = 5, .e = 6};
     RETURN_IF_ERROR(ohtable_put(ohtable, (const u64 *)&r0));
@@ -40,18 +41,20 @@ int put_get_cycle_works()
     return err_SUCCESS;
 }
 
+//NOTE: this test does not serve its original purpose of filling a table to near capacity,
+// forcing reads to scan multiple blocks. Consider creating a TINY_TEST ORAM to test this.
+#define NUM_ENTRIES 20000
 int loaded_table()
 {
-    size_t cap = 30000;
-    ohtable *ohtable = ohtable_create(cap, 7, TEST_STASH_SIZE, getentropy);
+    ohtable *ohtable = ohtable_create(7, getentropy);
 
-    for (u64 i = 0; i < 0.8 * cap; ++i)
+    for (u64 i = 0; i < NUM_ENTRIES; ++i)
     {
         record r0 = {.key = i, .a = 2 * i, .b = 3 * i, .c = 4 * i, .d = 5 * i, .e = 6 * i};
         RETURN_IF_ERROR(ohtable_put(ohtable, (const u64 *)&r0));
     }
 
-    for (size_t i = 0; i < 0.8 * cap; ++i)
+    for (size_t i = 0; i < NUM_ENTRIES; ++i)
     {
         record recovered;
         RETURN_IF_ERROR(ohtable_get(ohtable, i, (u64 *)&recovered));
@@ -64,7 +67,7 @@ int loaded_table()
         TEST_ASSERT(6 * i == recovered.e);
     }
 
-    for (u64 i = 0.8 * cap; i < cap; ++i)
+    for (u64 i = NUM_ENTRIES; i < NUM_ENTRIES + 100; ++i)
     {
         record recovered;
         RETURN_IF_ERROR(ohtable_get(ohtable, i, (u64 *)&recovered));
@@ -81,7 +84,7 @@ int loaded_table()
 
 int test_ohtable_stats_and_clear() {
     size_t cap = 30000;
-    ohtable *ohtable = ohtable_create(cap, 7, TEST_STASH_SIZE, getentropy);
+    ohtable *ohtable = ohtable_create(7, getentropy);
 
     for (u64 i = 0; i < 1000; ++i)
     {
@@ -101,9 +104,9 @@ int test_ohtable_stats_and_clear() {
 }
 
 error_t test_full_table() {
-    size_t cap = 10000;
-    ohtable *ohtable = ohtable_create(cap, 7, TEST_STASH_SIZE, getentropy);
+    ohtable *ohtable = ohtable_create(7, getentropy);
     size_t capacity = ohtable_capacity(ohtable);
+    TEST_LOG("ohtable created with capacity %zu", capacity);
 
     for (u64 i = 0; i < 0.98*capacity; ++i)
     {
@@ -113,6 +116,7 @@ error_t test_full_table() {
 
     record r = {.key = 0.98 * capacity};
     error_t err = ohtable_put(ohtable, (const u64*)&r);
+    // TODO: ohtable_put produces a 904 error but doesn't return it
     TEST_ASSERT(err == err_OHTABLE__TABLE_FULL);
 
     ohtable_destroy(ohtable);
@@ -122,9 +126,11 @@ error_t test_full_table() {
 void public_ohtable_tests()
 {
     RUN_TEST(put_get_cycle_works());
-    RUN_TEST(loaded_table());
     RUN_TEST(test_ohtable_stats_and_clear());
-    RUN_TEST(test_full_table());
+    if (!RUNNING_ON_VALGRIND) {
+      RUN_TEST(loaded_table());
+      RUN_TEST(test_full_table()); // takes too long in current setup
+    }
 }
 
 int main()

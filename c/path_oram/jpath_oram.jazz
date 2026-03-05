@@ -1,0 +1,239 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+from UTIL require "types.jinc"
+require "path_oram.jinc"
+
+/* struct oram layout functions - these are the source of truth */
+export
+fn oram_sizeof_jazz() -> reg u64
+{
+  reg u64 r;
+  r = PathORAM::ORAM_NUM_U64S * 8;
+  return r;
+}
+
+export
+fn oram_bucket_store_offset_jazz() -> reg u64
+{
+  reg u64 r;
+  r = PathORAM::BUCKET_STORE * 8;
+  return r;
+}
+
+export
+fn oram_position_map_offset_jazz() -> reg u64
+{
+  reg u64 r;
+  r = PathORAM::POSITION_MAP * 8;
+  return r;
+}
+
+export
+fn oram_stash_offset_jazz() -> reg u64
+{
+  reg u64 r;
+  r = PathORAM::STASH * 8;
+  return r;
+}
+
+export
+fn oram_path_offset_jazz() -> reg u64
+{
+  reg u64 r;
+  r = PathORAM::PATH * 8;
+  return r;
+}
+
+export
+fn oram_capacity_blocks_offset_jazz() -> reg u64
+{
+  reg u64 r;
+  r = PathORAM::CAPACITY_BLOCKS * 8;
+  return r;
+}
+
+export
+fn oram_statistics_offset_jazz() -> reg u64
+{
+  reg u64 r;
+  r = PathORAM::STATISTICS * 8;
+  return r;
+}
+
+/* struct stash layout functions */
+export fn stash_sizeof_jazz() -> reg u64 {
+  reg u64 r;
+  r = Stash::STASH_NUM_U64S * 8;
+  return r;
+}
+
+export fn stash_blocks_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = Stash::BLOCKS * 8;
+  return r;
+}
+
+export fn stash_path_blocks_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = Stash::PATH_BLOCKS * 8;
+  return r;
+}
+
+export fn stash_overflow_blocks_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = Stash::OVERFLOW_BLOCKS * 8;
+  return r;
+}
+
+export fn stash_num_blocks_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = Stash::NUM_BLOCKS * 8;
+  return r;
+}
+
+export fn stash_overflow_capacity_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = Stash::OVERFLOW_CAPACITY * 8;
+  return r;
+}
+
+export fn stash_bucket_occupancy_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = Stash::BUCKET_OCCUPANCY * 8;
+  return r;
+}
+
+export fn stash_bucket_assignments_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = Stash::BUCKET_ASSIGNMENTS * 8;
+  return r;
+}
+
+/* struct bucket_store layout functions */
+export fn bucket_store_sizeof_jazz() -> reg u64 {
+  reg u64 r;
+  r = BucketStore::BUCKET_STORE_NUM_U64S * 8;
+  return r;
+}
+
+export fn bucket_store_size_bytes_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = BucketStore::SIZE_BYTES * 8;
+  return r;
+}
+
+export fn bucket_store_data_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = BucketStore::DATA * 8;
+  return r;
+}
+
+/* struct tree_path layout functions */
+export fn tree_path_length_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = TreePath::LENGTH * 8;
+  return r;
+}
+
+export fn tree_path_values_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = TreePath::VALUES * 8;
+  return r;
+}
+
+// error_t oram_get_jazz(oram *oram, u64 block_id, u64 out_data[])
+export
+fn oram_get_jazz(
+  reg uptr oram,
+  #secret reg u64 block_id,
+  reg uptr out_data
+) -> reg u32
+{
+  #msf reg u64 msf;
+  reg u32 abort;
+  oram = oram;
+  block_id = block_id;
+  out_data = out_data;
+  msf = #init_msf();
+  abort = PathORAM::access(oram, block_id, out_data, msf, PathORAM::READ_ACCESSOR);
+  return abort;
+}
+
+// error_t oram_put_jazz(oram *oram, u64 block_id, const u64 in_data[])
+export
+fn oram_put_jazz(
+  reg uptr oram,
+  #secret reg u64 block_id,
+  reg uptr in_data
+) -> reg u32
+{
+  #msf reg u64 msf;
+  reg u32 abort;
+  oram = oram;
+  block_id = block_id;
+  in_data = in_data;
+  msf = #init_msf();
+  abort = PathORAM::access(oram, block_id, in_data, msf, PathORAM::WRITE_ACCESSOR);
+  return abort;
+}
+
+// error_t oram_function_access_get_jazz(oram *oram, u64 block_id, void *vargs)
+export
+fn oram_function_access_get_jazz(
+  reg uptr oram,
+  #secret reg u64 block_id,
+  reg uptr vargs
+) -> reg u32
+{
+  #msf reg u64 msf;
+  reg u32 abort;
+  oram = oram;
+  block_id = block_id;
+  vargs = vargs;
+  msf = #init_msf();
+  abort = PathORAM::access(oram, block_id, vargs, msf, PathORAM::RECORD_ACCESSOR);
+  return abort;
+}
+
+// error_t oram_function_access_put_jazz(oram *oram, u64 block_id, void *vargs)
+export
+fn oram_function_access_put_jazz(
+  reg uptr oram,
+  #secret reg u64 block_id,
+  reg uptr vargs
+) -> reg u32
+{
+  #msf reg u64 msf;
+  reg u32 abort;
+  oram = oram;
+  block_id = block_id;
+  vargs = vargs;
+  msf = #init_msf();
+  abort = PathORAM::access(oram, block_id, vargs, msf, PathORAM::ROBINHOOD_ACCESSOR);
+  return abort;
+}
+
+// error_t oram_position_map_put_jazz(oram *oram, u64 block_id, const u64 in_data[])
+export
+fn oram_position_map_put_jazz(
+  reg uptr oram,
+  #secret reg u64 block_id,
+  reg uptr in_data
+) -> reg u32
+{
+  #msf reg u64 msf;
+  reg u32 abort;
+  oram = oram;
+  block_id = block_id;
+  in_data = in_data;
+  msf = #init_msf();
+  abort = PathORAM::position_map_put(oram, block_id, in_data, msf);
+  return abort;
+}
+
+/* Export functions for testing purpose */
+require "jtree_path.jinc"
+require "jbucket.jinc"
+require "jstash.jinc"
+require "jposition_map.jinc"

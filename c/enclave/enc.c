@@ -194,7 +194,7 @@ int enclave_init(size_t available_memory, double load_factor, size_t num_shards,
   CHECK(OE_OK == oe_random(hash_key, 8));
   CHECK(OE_OK == oe_random(&g_client_secret, sizeof(g_client_secret)));
   TEST_LOG("sharded_ohtable_create");
-  g_table = sharded_ohtable_create_for_available_mem(sizeof record / sizeof t, num_shards, hash_key, available_memory, load_factor, stash_overflow_size, getentropy);
+  g_table = sharded_ohtable_create(sizeof record / sizeof t, num_shards, hash_key, getentropy);
   memset(hash_key, 0, 8);
 
 done:

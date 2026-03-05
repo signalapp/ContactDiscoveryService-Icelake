@@ -15,24 +15,8 @@
 
 int test_position_map_lifecycle()
 {
-    position_map *pm = position_map_create(1 << 18, 1<<17, TEST_STASH_SIZE, getentropy);
+    position_map *pm = oram_position_map_create_depth16(getentropy);
     TEST_ASSERT(pm != 0);
-    position_map_destroy(pm);
-
-    return err_SUCCESS;
-}
-
-int test_position_map_recursion_depth() {
-    position_map* pm = position_map_create(1 << 10, 1 << 10, TEST_STASH_SIZE, getentropy);
-    TEST_ASSERT(position_map_recursion_depth(pm) == 1);
-    position_map_destroy(pm);
-
-    pm = position_map_create(SCAN_THRESHOLD + 1, SCAN_THRESHOLD + 1, TEST_STASH_SIZE, getentropy);
-    TEST_ASSERT(position_map_recursion_depth(pm) == 2);
-    position_map_destroy(pm);
-
-    pm = position_map_create(SCAN_THRESHOLD*BLOCK_DATA_SIZE_QWORDS + 1, SCAN_THRESHOLD*BLOCK_DATA_SIZE_QWORDS + 1, TEST_STASH_SIZE, getentropy);
-    TEST_ASSERT(position_map_recursion_depth(pm) == 3);
     position_map_destroy(pm);
 
     return err_SUCCESS;
@@ -47,12 +31,12 @@ static int cmpu64(const void *pa, const void *pb)
 
 int test_position_map_initial_data()
 {
-    size_t size = 1 << 14;
-    position_map *pm = position_map_create(size, size, TEST_STASH_SIZE, getentropy);
+    size_t size = 32768;
+    position_map *pm = oram_position_map_create_depth16(getentropy);
     u64 *data = calloc(size, sizeof(*data));
     for (size_t i = 0; i < size; ++i)
     {
-        RETURN_IF_ERROR(position_map_get(pm, i, data + i));
+        RETURN_IF_ERROR(position_map_read_jazz(pm, i, data + i));
     }
 
     qsort(data, size, sizeof(*data), cmpu64);
@@ -88,12 +72,12 @@ int test_position_map_initial_data()
 
 int test_position_map_put_get()
 {
-    position_map *pm = position_map_create(1 << 18, 1 << 17, TEST_STASH_SIZE, getentropy);
+    position_map *pm = oram_position_map_create_depth16(getentropy);
 
     u64 prev;
-    RETURN_IF_ERROR(position_map_read_then_set(pm, 1234, 4321, &prev));
+    RETURN_IF_ERROR(position_map_read_then_set_jazz(pm, 1234, 4321, &prev));
     u64 result;
-    RETURN_IF_ERROR(position_map_get(pm, 1234, &result));
+    RETURN_IF_ERROR(position_map_read_jazz(pm, 1234, &result));
 
     TEST_ASSERT(result == 4321);
 
@@ -104,32 +88,32 @@ int test_position_map_put_get()
 
 int test_position_map_put_get_repeat()
 {
-    size_t num_positions = 1 << 10;
-    position_map *pm = position_map_create(num_positions, num_positions, TEST_STASH_SIZE, getentropy);
+    size_t num_positions = 32768;
+    position_map *pm = oram_position_map_create_depth16(getentropy);
 
     for (size_t i = 0; i < num_positions; ++i)
     {
         u64 prev;
-        RETURN_IF_ERROR(position_map_read_then_set(pm, i, i, &prev));
+        RETURN_IF_ERROR(position_map_read_then_set_jazz(pm, i, i, &prev));
     }
 
     for (size_t i = 0; i < num_positions; ++i)
     {
         u64 result;
-        RETURN_IF_ERROR(position_map_get(pm, i, &result));
+        RETURN_IF_ERROR(position_map_read_jazz(pm, i, &result));
         TEST_ASSERT(result == i);
     }
     for (size_t i = 0; i < num_positions; ++i)
     {
         u64 old_pos = 0;
-        RETURN_IF_ERROR(position_map_read_then_set(pm, i, num_positions - i, &old_pos));
+        RETURN_IF_ERROR(position_map_read_then_set_jazz(pm, i, num_positions - i, &old_pos));
         TEST_ASSERT(old_pos == i);
     }
 
     for (size_t i = 0; i < num_positions; ++i)
     {
         u64 result;
-        RETURN_IF_ERROR(position_map_get(pm, i, &result));
+        RETURN_IF_ERROR(position_map_read_jazz(pm, i, &result));
         TEST_ASSERT(result == num_positions - i);
     }
     position_map_destroy(pm);
@@ -139,7 +123,6 @@ int test_position_map_put_get_repeat()
 void public_position_map_tests()
 {
     RUN_TEST(test_position_map_lifecycle());
-    RUN_TEST(test_position_map_recursion_depth());
     RUN_TEST(test_position_map_initial_data());
     RUN_TEST(test_position_map_put_get());
     RUN_TEST(test_position_map_put_get_repeat());

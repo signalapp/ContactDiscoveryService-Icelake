@@ -13,15 +13,30 @@ struct tree_path
     u64 values[];
 };
 
-tree_path *tree_path_create(u64 leaf, u64 root);
+// Jasmin-exported layout functions (source of truth for struct tree_path layout)
+extern size_t tree_path_length_offset_jazz(void);
+extern size_t tree_path_values_offset_jazz(void);
+
+tree_path *tree_path_create(u64 length);
 void tree_path_destroy(tree_path *tp);
-void tree_path_update(tree_path *tp, u64 leaf);
 size_t tree_path_num_nodes(size_t num_levels);
-u64 tree_path_lower_bound(u64 val);
-u64 tree_path_upper_bound(u64 val);
-size_t tree_path_level(u64 val);
+
+/**
+ * @brief Updates the tree path with node IDs from the root to the given leaf
+ *
+ * @param tp
+ * @param leaf Leaf node identifier whose path is to be computed
+ */
+extern void tree_path_update_jazz(tree_path *tp, u64 leaf);
 
 #ifdef IS_TEST
+/**
+ * @brief Test-only Jasmin function declarations for tree path operations.
+ */
+extern u64 tree_path_lower_bound_jazz(u64 val);
+extern u64 tree_path_upper_bound_jazz(u64 val);
+extern size_t tree_path_level_jazz(u64 val);
+
 void private_tree_path_tests();
 #endif // IS_TEST
 #endif // CDS_PATH_ORAM_TREE_PATH_H

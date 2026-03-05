@@ -1,0 +1,118 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+from UTIL require "types.jinc"
+require "ohtable.jinc"
+
+/* struct ohtable layout functions - Jasmin only accesses some fields */
+export fn ohtable_sizeof_jazz() -> reg u64 {
+  reg u64 r;
+  r = OHTable::OHTABLE_NUM_U64S * 8;
+  return r;
+}
+
+export fn ohtable_capacity_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = OHTable::CAPACITY * 8;
+  return r;
+}
+
+export fn ohtable_items_per_block_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = OHTable::ITEMS_PER_BLOCK * 8;
+  return r;
+}
+
+export fn ohtable_capacity_ct_m_prime_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = OHTable::CAPACITY_CT_M_PRIME * 8;
+  return r;
+}
+
+export fn ohtable_capacity_ct_shift1_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = OHTable::CAPACITY_CT_SHIFT1 * 8;
+  return r;
+}
+
+export fn ohtable_capacity_ct_shift2_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = OHTable::CAPACITY_CT_SHIFT2 * 8;
+  return r;
+}
+
+export fn ohtable_items_per_block_ct_m_prime_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = OHTable::ITEMS_PER_BLOCK_CT_M_PRIME * 8;
+  return r;
+}
+
+export fn ohtable_items_per_block_ct_shift1_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = OHTable::ITEMS_PER_BLOCK_CT_SHIFT1 * 8;
+  return r;
+}
+
+export fn ohtable_items_per_block_ct_shift2_offset_jazz() -> reg u64 {
+  reg u64 r;
+  r = OHTable::ITEMS_PER_BLOCK_CT_SHIFT2 * 8;
+  return r;
+}
+
+// u64 *robinhood_accessor_jazz(u64 block_data[BLOCK_DATA_SIZE_QWORDS], void *vargs)
+export
+fn robinhood_accessor_jazz(
+  reg ptr u64[BLOCK_DATA_SIZE_QWORDS] block_data,
+  reg uptr vargs
+) -> reg ptr u64[BLOCK_DATA_SIZE_QWORDS]
+{
+  #msf reg u64 msf;
+  block_data = block_data;
+  vargs = vargs;
+
+  msf = #init_msf();
+
+  block_data, msf = Accessor::robinhood(block_data, vargs, msf);
+  return block_data;
+}
+
+// u64 *get_record_accessor_jazz(u64 block_data[BLOCK_DATA_SIZE_QWORDS], void *vargs)
+export
+fn get_record_accessor_jazz(
+  reg ptr u64[BLOCK_DATA_SIZE_QWORDS] block_data,
+  reg uptr vargs
+) -> reg ptr u64[BLOCK_DATA_SIZE_QWORDS]
+{
+  #msf reg u64 msf;
+  block_data = block_data;
+  vargs = vargs;
+
+  msf = #init_msf();
+
+  block_data, msf = Accessor::get_record(block_data, vargs, msf);
+  return block_data;
+}
+
+// u64 raw_hash_jazz(const u8 *key)
+export
+fn raw_hash_jazz(reg uptr key) -> reg u64
+{
+  reg u64 r;
+  _ = #init_msf();
+
+  r = OHTable::raw_hash(key);
+  return r;
+}
+
+// void ohtable_hash_jazz(const ohtable *ohtable, const u8 *key, u64 *block_id, u64 *index)
+export
+fn ohtable_hash_jazz(
+  reg uptr ohtable key
+) -> reg u64, reg u64
+{
+  reg u64 block_id index;
+  _ = #init_msf();
+
+  block_id, index = OHTable::hash(ohtable, key);
+  return block_id, index;
+}

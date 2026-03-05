@@ -19,32 +19,16 @@ extern size_t sharded_ohtable_ct_div_shift1_offset_jazz(void);
 extern size_t sharded_ohtable_ct_div_shift2_offset_jazz(void);
 
 /**
- * @brief Uses available memory to create sharded oblivious hashtable.
- * 
- * @param record_size_qwords Size of each record, in 64-bit integers.
- * @param num_shards Number of shards to create.
- * @param hash_key secret used to randomize distribution of records to shards.
- * @param available_bytes Bytes available to build this ORAM.
- * @param load_factor Ratio of number of ORAM blocks to number of bucket store leaves.
- *     Between 1.0 and 3.0 inclusive.
- * @param stash_overflow_size ize, in `block`s, of the overflow stash for this ORAM. 
- * @param getentropy entropy function used by internal ORAMs for randomness.
- * @return ohtable* Opaque pointer to an `ohtable` object.
- */
-sharded_ohtable* sharded_ohtable_create_for_available_mem(size_t record_size_qwords, size_t num_shards, u8 hash_key[static 8], size_t available_bytes, double load_factor, size_t stash_overflow_size, entropy_func getentropy);
-
-/**
  * @brief Create a sharded oblivious hashtable.
+ * ORAM capacity and stash size are compile-time Jasmin parameters.
  *
  * @param record_size_qwords The size of a record, measured in 64-bit words.
- * @param record_capacity The table must have capacity for at least this many records.
  * @param num_shards Number of shards to create.
  * @param hash_key secret used to randomize distribution of records to shards.
- * @param stash_overflow_size Size, in `block`s, of the overflow stash for ORAMs backing the `shard`s' tables.
  * @param getentropy entropy function used by internal ORAMs for randomness.
  * @return sharded_ohtable*
  */
-sharded_ohtable *sharded_ohtable_create(size_t record_size_qwords, size_t record_capacity, size_t num_shards, u8 hash_key[static 8], size_t stash_overflow_size, entropy_func getentropy);
+sharded_ohtable *sharded_ohtable_create(size_t record_size_qwords, size_t num_shards, u8 hash_key[static 8], entropy_func getentropy);
 
 /**
  * @brief Destroy a sharded hashtable and all of the resources it has allocated.

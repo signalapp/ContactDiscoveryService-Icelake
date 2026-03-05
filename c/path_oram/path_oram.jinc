@@ -1,0 +1,478 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+require "stash.jinc"
+from OHTABLE require "ohtable.jinc"
+
+// Accessor functions define what happens to a block's data during an ORAM
+// access.  Each takes the block's data region (a stack array slice) and
+// either reads from it, writes to it, or applies a more complex operation
+// (robinhood insertion, record lookup).
+//
+// The block_data_to_buffer/block_data_from_buffer variants copy the full data
+// area (BLOCK_DATA_SIZE_QWORDS qwords = 1344 bytes) in 256-bit chunks.
+//
+// The partial variants operate on individual u32 values within the block,
+// used by the recursive position map ORAM (which stores many small entries
+// per block).  They scan the entire block obliviously, selecting or
+// replacing exactly one u32 at the target index.
+
+namespace Accessor {
+// Copy block data out to caller's buffer.
+inline
+fn block_data_to_buffer(
+  reg ptr u64[BLOCK_DATA_SIZE_QWORDS] block_data,
+  reg uptr out_data
+) -> reg ptr u64[BLOCK_DATA_SIZE_QWORDS]
+{
+  reg u256 r;
+  inline int i;
+  for i = 0 to BLOCK_DATA_SIZE_QWORDS / 4
+  {
+    r = block_data.[:u256 32*i];
+    [:u256 out_data + 32 * i] = r;
+  }
+  return block_data;
+}
+
+// Copy caller's buffer into block data.
+inline
+fn block_data_from_buffer(
+  reg ptr u64[BLOCK_DATA_SIZE_QWORDS] block_data,
+  reg uptr in_data
+) -> reg ptr u64[BLOCK_DATA_SIZE_QWORDS]
+{
+  reg u256 r;
+  inline int i;
+
+  for i = 0 to BLOCK_DATA_SIZE_QWORDS / 4
+  {
+    r = [:u256 in_data + 32 * i];
+    block_data.[:u256 32*i] = r;
+  }
+  return block_data;
+}
+
+// Oblivious u32 write-with-readback: writes in_data to block_data[write_at_idx]
+// and returns the previous value at that index.  Scans every u32 slot so the
+// access pattern doesn't reveal which index was targeted.
+//
+// in_data and the returned previous value are logically u32 (positions packed
+// into the block as u32 to halve storage), but typed u64 to match the surrounding
+// position-handling code and avoid casts at every call site.
+inline
+fn write_partial_out(
+  reg ptr u32[BLOCK_DATA_SIZE_QWORDS*2] block_data,
+  reg u64 write_at_idx,
+  reg u64 in_data
+) -> reg ptr u64[BLOCK_DATA_SIZE_QWORDS], reg u64
+{
+  reg u64 out_data_64;
+  reg u32 out_data in_data_32;
+  reg u8 c1;
+  reg bool b;
+  inline int i;
+
+  _, _, _, _, _, out_data = #set0_32();
+  in_data_32 = (32u)in_data;
+  for i = 0 to BLOCK_DATA_SIZE_QWORDS * 2
+  {
+    // cond
+    b = write_at_idx == i;
+    c1 = #SETcc(b);
+
+    out_data = _ternary32(c1, block_data[:u32 i], out_data);
+    block_data[:u32 i] = _ternary32(c1, in_data_32, block_data[:u32 i]);
+  }
+  out_data_64 = (64u)out_data;
+  return block_data, out_data_64;
+}
+
+
+// Oblivious u32 read: returns block_data[read_at_idx] without revealing
+// the index.  Scans the entire block.
+//
+// Similar to write_partial_out above, we work with u32s here
+// to save space and make the scan faster, but must return u64 to the callers.
+inline
+fn read_partial(
+  reg ptr u32[BLOCK_DATA_SIZE_QWORDS*2] block_data,
+  reg u64 read_at_idx
+) -> reg ptr u64[BLOCK_DATA_SIZE_QWORDS], reg u64
+{
+  reg u64 out_data_64;
+  reg u32 out_data;
+  reg u8 c1;
+  reg bool b;
+  inline int i;
+
+  _, _, _, _, _, out_data = #set0_32();
+  for i = 0 to BLOCK_DATA_SIZE_QWORDS * 2
+  {
+    // cond
+    b = read_at_idx == i;
+    c1 = #SETcc(b);
+
+    out_data = _ternary32(c1, block_data[:u32 i], out_data);
+  }
+  out_data_64 = (64u)out_data;
+  return block_data, out_data_64;
+}
+} // namespace Accessor
+
+// Path ORAM implementation.
+//
+// An ORAM access consists of:
+//   1. Sample a fresh random position for the target block
+//   2. Read-then-set the position map (get old position, store new one)
+//   3. Compute the tree path for the old position
+//   4. Read every bucket on that path into the stash, extracting the target
+//   5. Apply the accessor function to the target block's data
+//   6. Insert the (possibly modified) target back into the stash overflow
+//   7. Evict: assign stash blocks to buckets, sort, write back
+//
+// Two entry points: `access` (main ORAM with recursive position map) and
+// `position_map_put` (position-map ORAM with linear-scan position map).
+
+namespace PathORAM {
+// struct oram field indices (in u64 units).
+// These are the source of truth for struct layout -- C code must use
+// the exported offset/sizeof functions rather than defining its own struct.
+param int BUCKET_STORE = 0;
+param int POSITION_MAP = 1;
+param int STASH = 2;
+param int PATH = 3;
+// C-only fields (not accessed by Jasmin, but included for sizeof)
+param int CAPACITY_BLOCKS = 4; // size_t: 1 u64
+param int STATISTICS = 5;      // oram_statistics: 10 u64s (80 bytes)
+param int ORAM_NUM_U64S = 15;  // total struct size in u64s
+
+// Accessor type selector (compile-time).  Determines what operation is
+// applied to the target block's data during an access.
+param int READ_ACCESSOR = 0;      // copy block data -> caller buffer
+param int WRITE_ACCESSOR = 1;     // copy caller buffer -> block data
+param int ROBINHOOD_ACCESSOR = 2; // Robin Hood hash insertion (ohtable)
+param int RECORD_ACCESSOR = 3;    // record lookup by key (ohtable)
+
+// --- Struct field accessors ---
+inline
+fn bucket_store_ptr(
+  reg uptr oram,
+  #msf reg u64 msf
+) -> reg uptr, #msf reg u64
+{
+  reg uptr p;
+  #declassify p = [:u64 oram + 8 * BUCKET_STORE];
+  p = #protect(p, msf);
+  return p, msf;
+}
+
+inline
+fn stash_ptr(
+  reg uptr oram,
+  #msf reg u64 msf
+) -> reg uptr, #msf reg u64
+{
+  reg uptr p;
+  #declassify p = [:u64 oram + 8 * STASH];
+  p = #protect(p, msf);
+  return p, msf;
+}
+
+inline
+fn position_map_ptr(
+  reg uptr oram,
+  #msf reg u64 msf
+) -> reg uptr, #msf reg u64
+{
+  reg uptr p;
+  #declassify p = [:u64 oram + 8 * POSITION_MAP];
+  p = #protect(p, msf);
+  return p, msf;
+}
+
+inline
+fn path_ptr(
+  reg uptr oram,
+  #msf reg u64 msf
+) -> reg uptr, #msf reg u64
+{
+  reg uptr p;
+  #declassify p = [:u64 oram + 8 * PATH];
+  p = #protect(p, msf);
+  return p, msf;
+}
+
+/**
+ * @brief read the path from the bucket store, performing the same sequence of instructions independent of the input.
+ * Post-condition: the block with `id == target_block_id` will *not* be in the stash - neither the overflow or the path stash.
+ * It will be in the block `*target` and the new position will be set.
+ * 
+ * @param oram 
+ * @param path Path for block with ID `target_block_id`.
+ * @param target_block_id ID of block to read
+ * @param target On output, block with ID `target_block_id` will be available here
+ * @param new_position Position for the target block after this access
+ */
+inline
+fn read_path_for_block(
+  reg uptr oram path,
+  reg u64 target_block_id,
+  reg ptr u64[DECRYPTED_BLOCK_SIZE_QWORDS] target,
+  reg u64 new_position,
+  #msf reg u64 msf,
+  inline int path_length
+) -> reg ptr u64[DECRYPTED_BLOCK_SIZE_QWORDS], #msf reg u64
+{
+  reg uptr stash bucket_store;
+  reg u64 value;
+  inline int i;
+
+  () = #spill(new_position, path);
+  stash, msf = stash_ptr(oram, msf);
+  bucket_store, msf = bucket_store_ptr(oram, msf);
+  for i = 0 to path_length
+  {
+    () = #unspill(path);
+    path = #protect(path, msf);
+    #declassify value = [:u64 path + 8 + 8 * i];
+    () = #spill(path);
+    value = #protect(value, msf);
+    #update_after_call target, msf = Stash::add_path_bucket(stash, bucket_store, value, target_block_id, target, msf);
+    stash = #protect(stash, msf);
+    bucket_store = #protect(bucket_store, msf);
+  }
+  #update_after_call target, msf = Stash::scan_overflow_for_target(stash, target_block_id, target, msf);
+
+  () = #unspill(new_position);
+  target[:u64 0] = target_block_id;
+  target[:u64 1] = new_position;
+  return target, msf;
+}
+
+require "position_map.jinc"
+
+// ORAM access for the *position map* ORAM (the leaf-level recursion).
+// Uses a linear-scan position map (_read_then_set_linear) instead of a
+// recursive one, so this doesn't recurse further.  Always uses the WRITE
+// accessor to store in_data into the block.
+// Uses PATH_LENGTH_0 (the position-map tree depth, shorter than the
+// main ORAM's PATH_LENGTH).
+inline
+fn position_map_put(
+  #public reg uptr oram,
+  #secret reg u64 block_id,
+  #public reg uptr in_data,
+  #msf reg u64 msf
+) -> reg u32
+{
+  stack u64[DECRYPTED_BLOCK_SIZE_QWORDS] target_block_s;
+  reg ptr u64[DECRYPTED_BLOCK_SIZE_QWORDS] target_block;
+  // standard variables
+  reg u64 new_position x;
+  // pointer variables
+  reg uptr stash position_map bucket_store path_blocks path;
+  // temporary variables
+  reg u64 bucket_id;
+  reg u32 abort;
+  reg bool b;
+  inline int i max_position offset;
+
+  // Step 1: Initialize target to "empty" (all-ones)
+  () = #spill(in_data);
+  target_block = target_block_s;
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { target_block[i] = -1; }
+  max_position = (64u)(1 << (PATH_LENGTH_0 - 1));
+
+  // Step 2: Sample fresh random position for this block
+  new_position, msf = _random_mod_by_pow_of_2(msf, max_position);
+
+  // Step 3: Read old position, store new one (linear scan -- no recursion)
+  position_map, msf = position_map_ptr(oram, msf);
+  () = #spill(oram, block_id, new_position, in_data, target_block);
+  x, msf = PositionMap::_read_then_set_linear(position_map, block_id, new_position, msf);
+  () = #unspill(oram, block_id, new_position, in_data, target_block);
+  oram = #protect(oram, msf);
+  target_block = #protect_ptr(target_block, msf);
+  x *= 2;  // positions are stored as half-values; double to get leaf index
+
+  // Step 4: Compute tree path for old position and read buckets into stash
+  path, msf = path_ptr(oram, msf);
+  msf = TreePath::update(path, x, msf);
+
+  new_position *= 2;
+  target_block, msf = read_path_for_block(oram, path, block_id, target_block, new_position, msf, PATH_LENGTH_0);
+
+  // Step 5: Apply WRITE accessor -- copy in_data into the target block
+  () = #spill(path);
+  () = #unspill(in_data);
+  in_data = #protect(in_data, msf);
+  target_block[2:BLOCK_DATA_SIZE_QWORDS] = Accessor::block_data_from_buffer(target_block[2:BLOCK_DATA_SIZE_QWORDS], in_data);
+
+  // Step 6: Insert modified target into stash overflow
+  stash, msf = stash_ptr(oram, msf);
+  () = #spill(oram);
+  abort, target_block, msf = Stash::add_block(stash, target_block, msf);
+
+  // Step 7: Evict -- assign stash blocks to buckets and write path back
+  b = abort == 0;
+  () = #spill(abort);
+  if (b) {
+    msf = #update_msf(b, msf);
+    () = #spill(stash);
+    // path was spilled before #update_msf, so its spill slot has a stale
+    // protection tag.  Reload, re-protect under the current msf, and
+    // re-spill so the slot is fresh for the unspill after build_path
+    // (which is inline but register-hungry and will evict path).
+    () = #unspill(path);
+    path = #protect(path, msf);
+    () = #spill(path);
+    msf = Stash::build_path(stash, path, msf, PATH_LENGTH_0);
+    () = #unspill(oram);
+    oram = #protect(oram, msf);
+
+    // Write each bucket back to the bucket store
+    bucket_store, msf = bucket_store_ptr(oram, msf);
+    path_blocks, msf = Stash::path_blocks_ptr(stash, msf);
+    () = #unspill(path);
+    path = #protect(path, msf);
+    offset = BLOCKS_PER_BUCKET * DECRYPTED_BLOCK_SIZE_QWORDS * 8;
+    for i = 0 to PATH_LENGTH_0
+    {
+      #declassify bucket_id = [:u64 path + 8 + 8 * i];
+      bucket_id = #protect(bucket_id, msf);
+      #update_after_call msf = BucketStore::write_bucket_blocks(bucket_store, bucket_id, path_blocks, msf);
+      path = #protect(path, msf);
+      bucket_store = #protect(bucket_store, msf);
+      path_blocks = #protect(path_blocks, msf);
+      path_blocks += (64u)offset;
+    }
+  } else {
+    msf = #update_msf(!b, msf);
+  }
+  () = #unspill(abort);
+  abort = #protect_32(abort, msf);
+
+  return abort;
+}
+
+// Main ORAM access.  Parameterized by accessor type `t` (compile-time).
+// Uses the recursive position map (PositionMap::read_then_set), which
+// itself performs an ORAM access on a smaller tree (position_map_put).
+// Uses PATH_LENGTH (the main ORAM tree depth).
+inline
+fn access(
+  #public reg uptr oram,
+  #secret reg u64 block_id,
+  #public reg uptr vargs,
+  #msf reg u64 msf,
+  inline int t
+) -> reg u32
+{
+  stack u64[DECRYPTED_BLOCK_SIZE_QWORDS] target_block_s;
+  reg ptr u64[DECRYPTED_BLOCK_SIZE_QWORDS] target_block;
+  // standard variables
+  reg u64 new_position x;
+  // pointer variables
+  reg uptr stash position_map bucket_store path_blocks path;
+  // temporary variables
+  reg u64 bucket_id;
+  reg u32 abort;
+  reg bool b;
+  inline int i max_position offset;
+
+  // Step 1: Initialize target to "empty" (all-ones)
+  () = #spill(vargs);
+  target_block = target_block_s;
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { target_block[i] = -1; }
+  max_position = (64u)(1 << (PATH_LENGTH - 1));
+
+  // Step 2: Sample fresh random position
+  new_position, msf = _random_mod_by_pow_of_2(msf, max_position);
+
+  // Step 3: Read old position, store new one (recursive ORAM access)
+  position_map, msf = position_map_ptr(oram, msf);
+  () = #spill(oram, block_id, new_position, vargs, target_block);
+  abort, x, msf = PositionMap::read_then_set(position_map, block_id, new_position, msf);
+
+  b = abort == 0;
+  if (b) {
+    msf = #update_msf(b, msf);
+    () = #unspill(oram, block_id, new_position, vargs, target_block);
+    oram = #protect(oram, msf);
+    target_block = #protect_ptr(target_block, msf);
+    x *= 2;  // positions stored as half-values; double to get leaf index
+
+    // Step 4: Compute tree path for old position and read into stash
+    path, msf = path_ptr(oram, msf);
+    msf = TreePath::update(path, x, msf);
+
+    new_position *= 2;
+    target_block, msf = read_path_for_block(oram, path, block_id, target_block, new_position, msf, PATH_LENGTH);
+
+    // Step 5: Apply the accessor to the target block's data
+    () = #spill(path, oram);
+    () = #unspill(vargs);
+    vargs = #protect(vargs, msf);
+
+    #inline if (t == READ_ACCESSOR) {
+      target_block[2:BLOCK_DATA_SIZE_QWORDS] = Accessor::block_data_to_buffer(target_block[2:BLOCK_DATA_SIZE_QWORDS], vargs);
+    } else {
+      #inline if (t == WRITE_ACCESSOR) {
+        target_block[2:BLOCK_DATA_SIZE_QWORDS] = Accessor::block_data_from_buffer(target_block[2:BLOCK_DATA_SIZE_QWORDS], vargs);
+      } else {
+        #inline if (t == ROBINHOOD_ACCESSOR) {
+          target_block[2:BLOCK_DATA_SIZE_QWORDS], msf = Accessor::robinhood(target_block[2:BLOCK_DATA_SIZE_QWORDS], vargs, msf);
+        } else {
+          target_block[2:BLOCK_DATA_SIZE_QWORDS], msf = Accessor::get_record(target_block[2:BLOCK_DATA_SIZE_QWORDS], vargs, msf);
+        }
+      }
+    }
+
+    // Step 6: Insert modified target into stash overflow
+    () = #unspill(oram);
+    oram = #protect(oram, msf);
+    stash, msf = stash_ptr(oram, msf);
+    () = #spill(oram);
+    abort, target_block, msf = Stash::add_block(stash, target_block, msf);
+
+    // Step 7: Evict -- assign stash blocks to buckets and write path back
+    b = abort == 0;
+    () = #spill(abort);
+    if (b) {
+      msf = #update_msf(b, msf);
+      () = #spill(stash);
+      () = #unspill(path);
+      path = #protect(path, msf);
+      () = #spill(path);
+      msf = Stash::build_path(stash, path, msf, PATH_LENGTH);
+      () = #unspill(oram);
+      oram = #protect(oram, msf);
+
+      // Write each bucket back to the bucket store
+      bucket_store, msf = bucket_store_ptr(oram, msf);
+      path_blocks, msf = Stash::path_blocks_ptr(stash, msf);
+      () = #unspill(path);
+      path = #protect(path, msf);
+      offset = BLOCKS_PER_BUCKET * DECRYPTED_BLOCK_SIZE_QWORDS * 8;
+      for i = 0 to PATH_LENGTH
+      {
+        #declassify bucket_id = [:u64 path + 8 + 8 * i];
+        bucket_id = #protect(bucket_id, msf);
+        #update_after_call msf = BucketStore::write_bucket_blocks(bucket_store, bucket_id, path_blocks, msf);
+        path = #protect(path, msf);
+        bucket_store = #protect(bucket_store, msf);
+        path_blocks = #protect(path_blocks, msf);
+        path_blocks += (64u)offset;
+      }
+    } else {
+      msf = #update_msf(!b, msf);
+    }
+    () = #unspill(abort);
+    abort = #protect_32(abort, msf);
+  } else {
+    msf = #update_msf(!b, msf);
+  }
+  return abort;
+}
+} // namespace PathORAM

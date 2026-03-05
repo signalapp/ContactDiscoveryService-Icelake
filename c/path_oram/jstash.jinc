@@ -1,0 +1,132 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+export
+fn cond_copy_block_jazz(
+  reg u8 cond,
+  reg uptr dst src
+)
+{
+  stack u64[DECRYPTED_BLOCK_SIZE_QWORDS] src_s;
+  reg ptr u64[DECRYPTED_BLOCK_SIZE_QWORDS] src_p;
+  inline int i;
+
+  cond = cond;
+  dst = dst;
+  src = src;
+
+  src_p = src_s;
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { src_p[i] = [:u64 src + 8 * i]; }
+  src_p = Stash::_cond_copy_block(cond, dst, src_p);
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { [:u64 src + 8 * i] = src_p[i]; }
+}
+
+export
+fn cond_swap_blocks_jazz(
+  reg u8 cond,
+  reg u64 a b
+)
+{
+  stack u64[DECRYPTED_BLOCK_SIZE_QWORDS] a_s;
+  reg ptr u64[DECRYPTED_BLOCK_SIZE_QWORDS] a_p;
+  inline int i;
+
+  cond = cond;
+  a = a;
+  b = b;
+
+  a_p = a_s;
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { a_p[i] = [:u64 a + 8 * i]; }
+  a_p = Stash::_cond_swap_blocks(cond, a_p, b);
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { [:u64 a + 8 * i] = a_p[i]; }
+}
+
+export
+fn odd_even_msort_jazz(
+  reg uptr blocks block_level_assignments,
+  reg u64 lb ub
+)
+{
+  #msf reg u64 msf;
+
+  blocks = blocks;
+  block_level_assignments = block_level_assignments;
+  lb = lb;
+  ub = ub;
+
+  msf = #init_msf();
+  msf = Stash::_odd_even_msort(blocks, block_level_assignments, lb, ub, msf);
+}
+
+export
+fn stash_add_path_bucket_jazz(
+  reg uptr stash bucket_store,
+  reg u64 bucket_id target_block_id target
+)
+{
+  #msf reg u64 msf;
+  stack u64[DECRYPTED_BLOCK_SIZE_QWORDS] target_s;
+  reg ptr u64[DECRYPTED_BLOCK_SIZE_QWORDS] target_p;
+  inline int i;
+
+  stash = stash;
+  bucket_store = bucket_store;
+  bucket_id = bucket_id;
+  target_block_id = target_block_id;
+  target = target;
+
+  msf = #init_msf();
+  target_p = target_s;
+
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { target_p[i] = [:u64 target + 8 * i]; }
+  target_p, msf = Stash::add_path_bucket(stash, bucket_store, bucket_id, target_block_id, target_p, msf);
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { [:u64 target + 8 * i] = target_p[i]; }
+}
+
+export
+fn stash_scan_overflow_for_target_jazz(
+  reg uptr stash,
+  reg u64 target_block_id target
+)
+{
+  #msf reg u64 msf;
+  stack u64[DECRYPTED_BLOCK_SIZE_QWORDS] target_s;
+  reg ptr u64[DECRYPTED_BLOCK_SIZE_QWORDS] target_p;
+  inline int i;
+
+  stash = stash;
+  target_block_id = target_block_id;
+  target = target;
+
+  msf = #init_msf();
+  target_p = target_s;
+
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { target_p[i] = [:u64 target + 8 * i]; }
+  target_p, msf = Stash::scan_overflow_for_target(stash, target_block_id, target_p, msf);
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { [:u64 target + 8 * i] = target_p[i]; }
+}
+
+export
+fn stash_add_block_jazz(
+  reg uptr stash,
+  reg u64 new_block
+) -> reg u32
+{
+  #msf reg u64 msf;
+  reg u32 r;
+  stack u64[DECRYPTED_BLOCK_SIZE_QWORDS] new_block_s;
+  reg ptr u64[DECRYPTED_BLOCK_SIZE_QWORDS] new_block_p;
+  inline int i;
+
+  stash = stash;
+  new_block = new_block;
+
+  msf = #init_msf();
+  new_block_p = new_block_s;
+
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { new_block_p[i] = [:u64 new_block + 8 * i]; }
+  r, new_block_p, msf = Stash::add_block(stash, new_block_p, msf);
+  for i = 0 to DECRYPTED_BLOCK_SIZE_QWORDS { [:u64 new_block + 8 * i] = new_block_p[i]; }
+
+  return r;
+}

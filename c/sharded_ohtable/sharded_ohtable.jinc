@@ -1,7 +1,7 @@
 // Copyright 2026 Signal Messenger, LLC
 // SPDX-License-Identifier: AGPL-3.0-only
 
-from SOENV require "params.jinc"
+from ENV require "params.jinc"
 from UTIL require "util.jinc"
 from UTIL require "record.jinc"
 from UTIL require "error.jinc"

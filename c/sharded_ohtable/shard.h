@@ -34,35 +34,18 @@ typedef enum
 
 typedef struct sharded_ohtable_request sharded_ohtable_request;
 
-
-/**
- * @brief Uses available memory to create an ORAM-backed hashtable shard.  Used internally by `sharded_ohtable`.
- * 
- * @param lb Lower bound for keys stored in this shard.
- * @param ub Upper bound for keys stored in this shard.
- * @param record_size_qwords Size of each record, in 64-bit integers.
- * @param available_bytes Bytes available to build this ORAM.
- * @param load_factor Ratio of number of ORAM blocks to number of bucket store leaves.
- *     Between 1.0 and 3.0 inclusive.
- * @param stash_overflow_size ize, in `block`s, of the overflow stash for this ORAM. 
- * @param getentropy entropy function used by internal ORAM for randomness.
- * @return shard*
- */
-shard* shard_create_for_available_mem(u64 lb, u64 ub, size_t record_size_qwords, size_t available_bytes, double load_factor, size_t stash_overflow_size, entropy_func getentropy);
-
 /**
  * @brief Used internally by `sharded_ohtable`.
- * Create a table shard with a specified capacity and a range of values to be managed.
+ * Create a table shard with a range of values to be managed.
+ * ORAM capacity and stash size are compile-time Jasmin parameters.
  *
  * @param lb Lower bound for keys stored in this shard.
  * @param ub Upper bound for keys stored in this shard.
  * @param record_size_qwords Size of a data record in 64-bit words.
- * @param record_capacity Number of records this shard must be able to hold.
- * @param stash_overflow_size Size, in `block`s, of the overflow stash for ORAMs backing this `shard`'s table
  * @param getentropy entropy function used by internal ORAM for randomness.
  * @return shard*
  */
-shard* shard_create(u64 lb, u64 ub, size_t record_size_qwords, size_t record_capacity, size_t stash_overflow_size, entropy_func getentropy);
+shard* shard_create(u64 lb, u64 ub, size_t record_size_qwords, entropy_func getentropy);
 
 /**
  * @brief Release all resources owned by this shard

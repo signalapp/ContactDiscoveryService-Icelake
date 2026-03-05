@@ -9,31 +9,15 @@
 
 typedef struct ohtable ohtable;
 
-/**
- * @brief Uses available memory to create an ORAM-backed hashtable (Oblivious Hashtable - `ohtable`)
- * that stores fixed-size records.
- * 
- * @param record_size_qwords Size of each record, in 64-bit integers.
- * @param available_bytes Bytes available to build this ORAM.
- * @param load_factor Ratio of number of ORAM blocks to number of bucket store leaves.
- *     Between 1.0 and 3.0 inclusive.
- * @param stash_overflow_size Size, in `block`s, of the overflow stash for this ORAM. 
- * @param getentropy entropy function used by internal ORAM for randomness.
- * @return ohtable* Opaque pointer to an `ohtable` object.
- */
-ohtable* ohtable_create_for_available_mem(size_t record_size_qwords, size_t available_bytes, double load_factor, size_t stash_overflow_size, entropy_func getentropy);
 
 /**
  * @brief Creates an ORAM-backed hashtable (Oblivious Hashtable - `ohtable`)
  * that stores fixed-size records.
  *
- * @param record_capacity Minimum number of records the hashtable must hold.
- * @param record_size_qwords Size of each record, in 64-bit integers.
- * @param stash_overflow_size Size of the overflow stash, in `block`s, for the ORAM backing this table.
  * @param getentropy entropy function used by internal ORAM for randomness.
  * @return ohtable* Opaque pointer to an `ohtable` object.
  */
-ohtable *ohtable_create(size_t record_capacity, size_t record_size_qwords, size_t stash_overflow_size, entropy_func getentropy);
+ohtable *ohtable_create(size_t record_size_qwords, entropy_func getentropy);
 
 /**
  * @brief Frees all of the resources used by an `ohtable`

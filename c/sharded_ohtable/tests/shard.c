@@ -26,7 +26,7 @@ void *worker(void *input)
 
 int test_shard_request_response()
 {
-    shard *shard = shard_create(0, UINT64_MAX, RECORD_SIZE_QWORDS, 1000000, TEST_STASH_SIZE, getentropy);
+    shard *shard = shard_create(0, UINT64_MAX, RECORD_SIZE_QWORDS, getentropy);
     // run the worker
     pthread_t tid;
     pthread_create(&tid, 0, worker, (void *)shard);
@@ -79,7 +79,7 @@ int test_shard_request_response()
 
 int test_shard_load()
 {
-    shard *shard = shard_create(0, UINT64_MAX, RECORD_SIZE_QWORDS, 1000000, TEST_STASH_SIZE, getentropy);
+    shard *shard = shard_create(0, UINT64_MAX, RECORD_SIZE_QWORDS, getentropy);
     // run the worker
     pthread_t tid;
     pthread_create(&tid, 0, worker, (void *)shard);

@@ -1,0 +1,92 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+// The bucket store is a flat array of encrypted buckets, indexed by bucket_id.
+// Each bucket holds BLOCKS_PER_BUCKET blocks.  In SGX, the Memory Encryption
+// Engine (MEE) handles encryption transparently, so read/write are plain
+// memcpy operations -- ENCRYPTED_BUCKET_SIZE == DECRYPTED_BUCKET_SIZE.
+//
+// Bucket size is 4096 bytes (one SGX EPC page).  With BLOCKS_PER_BUCKET=3,
+// each block is 1360 bytes: 8B id + 8B position + 1344B data.
+
+namespace BucketStore {
+// struct bucket_store field indices (in u64 units).
+// Layout is the source of truth -- C validates via bucket_store_validate_layout().
+param int SIZE_BYTES = 0;
+param int DATA = 1;
+param int BUCKET_STORE_NUM_U64S = 2;
+
+// A block with id == EMPTY_BLOCK_ID is considered vacant.
+param int EMPTY_BLOCK_ID = -1;
+
+// --- Struct field accessor ---
+inline
+fn data_ptr(
+  reg uptr bucket_store,
+  #msf reg u64 msf
+) -> reg uptr, #msf reg u64
+{
+  reg uptr p;
+  #declassify p = [:u64 bucket_store + DATA * 8];
+  p = #protect(p, msf);
+  return p, msf;
+}
+
+// Copy all BLOCKS_PER_BUCKET blocks from bucket `bucket_id` into `bucket_data`.
+// Uses 256-bit loads for bulk + 128-bit for the 2-qword tail (10 qwords per
+// block * 3 blocks = 30 qwords = 7*4 + 2).
+fn read_bucket_blocks(
+  reg uptr bucket_store,
+  reg u64 bucket_id,
+  reg uptr bucket_data,
+  #msf reg u64 msf
+) -> #msf reg u64
+{
+  reg uptr encrypted_bucket data;
+  reg u256 t;
+  reg u128 r;
+  reg u64 offset;
+  inline int i;
+
+  data, msf = data_ptr(bucket_store, msf);
+  offset = bucket_id * ENCRYPTED_BUCKET_SIZE;
+  encrypted_bucket = data + offset;
+  for i = 0 to (DECRYPTED_BLOCK_SIZE_QWORDS * BLOCKS_PER_BUCKET) / 4
+  {
+    t = [:u256 encrypted_bucket + 32 * i];
+    [:u256 bucket_data + 32 * i] = t;
+  }
+  r = [:u128 encrypted_bucket + 32 * ((DECRYPTED_BLOCK_SIZE_QWORDS * BLOCKS_PER_BUCKET) / 4)];
+  [:u128 bucket_data + 32 * ((DECRYPTED_BLOCK_SIZE_QWORDS * BLOCKS_PER_BUCKET) / 4)] = r;
+  return msf;
+}
+
+// Write BLOCKS_PER_BUCKET blocks from `bucket_data` into bucket `bucket_id`.
+// Must always write a full bucket (pad with empty blocks if needed).
+fn write_bucket_blocks(
+  reg uptr bucket_store,
+  reg u64 bucket_id,
+  reg uptr bucket_data,
+  #msf reg u64 msf
+) -> #msf reg u64
+{
+  reg uptr encrypted_bucket data;
+  reg u256 t;
+  reg u128 r;
+  reg u64 offset;
+  inline int i;
+
+  data, msf = data_ptr(bucket_store, msf);
+  offset = bucket_id * ENCRYPTED_BUCKET_SIZE;
+  encrypted_bucket = data + offset;
+  for i = 0 to (DECRYPTED_BLOCK_SIZE_QWORDS * BLOCKS_PER_BUCKET) / 4
+  {
+    t = [:u256 bucket_data + 32 * i];
+    [:u256 encrypted_bucket + 32 * i] = t;
+  }
+  r = [:u128 bucket_data + 32 * ((DECRYPTED_BLOCK_SIZE_QWORDS * BLOCKS_PER_BUCKET) / 4)];
+  [:u128 encrypted_bucket + 32 * ((DECRYPTED_BLOCK_SIZE_QWORDS * BLOCKS_PER_BUCKET) / 4)] = r;
+
+  return msf;
+}
+} // namespace BucketStore

@@ -8,10 +8,10 @@ env:
   BUILDX_CONTAINER: container
 
 jobs:
-  test:
-    name: Build and test
+  c-tests:
+    name: C tests
     runs-on: ubuntu-22.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     permissions:
       packages: read
       contents: read
@@ -24,10 +24,6 @@ jobs:
           submodules: recursive
 
       - name: Expose Docker environment variables for gha cache
-        # This action takes in the ID tokens etc provided by the permissions,
-        # as well as some environment data, and exposes them to future steps
-        # in the correct locations and formats for their use with the `gha`
-        # GitHub Actions cache for Docker.
         uses: crazy-max/ghaction-github-runtime@3cb05d89e1f492524af3d41a1c98c83bc3025124 # v3.1.0
 
       - name: Setup Docker
@@ -37,13 +33,76 @@ jobs:
         working-directory: c
         run: make docker_tests
 
+  c-build:
+    name: C build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    permissions:
+      packages: read
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout main project
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          submodules: recursive
+
+      - name: Expose Docker environment variables for gha cache
+        uses: crazy-max/ghaction-github-runtime@3cb05d89e1f492524af3d41a1c98c83bc3025124 # v3.1.0
+
+      - name: Setup Docker
+        run: docker buildx create --use --name container --driver docker-container
+
       - name: Build all C
         working-directory: c
         run: make docker_all
 
+  c-valgrinds:
+    name: C valgrind tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    permissions:
+      packages: read
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout main project
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          submodules: recursive
+
+      - name: Expose Docker environment variables for gha cache
+        uses: crazy-max/ghaction-github-runtime@3cb05d89e1f492524af3d41a1c98c83bc3025124 # v3.1.0
+
+      - name: Setup Docker
+        run: docker buildx create --use --name container --driver docker-container
+
       - name: Valgrind tests
         working-directory: c
         run: make docker_valgrinds
+
+  java-tests:
+    name: Java tests
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    permissions:
+      packages: read
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Checkout main project
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          submodules: recursive
+
+      - name: Expose Docker environment variables for gha cache
+        uses: crazy-max/ghaction-github-runtime@3cb05d89e1f492524af3d41a1c98c83bc3025124 # v3.1.0
+
+      - name: Setup Docker
+        run: docker buildx create --use --name container --driver docker-container
 
       - name: Set up JDK
         uses: actions/setup-java@dded0888837ed1f317902acf8a20df0ad188d165 # v5.0.0

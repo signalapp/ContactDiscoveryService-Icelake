@@ -1,0 +1,48 @@
+// Copyright 2026 Signal Messenger, LLC
+// SPDX-License-Identifier: AGPL-3.0-only
+
+export
+fn tree_path_update_jazz(
+  reg uptr tp,
+  reg u64 leaf
+)
+{
+  #msf reg u64 msf;
+  msf = #init_msf();
+  tp = tp;
+  leaf = leaf;
+  msf = TreePath::update(tp, leaf, msf);
+}
+
+export
+fn tree_path_lower_bound_jazz(
+  reg u64 val
+) -> reg u64
+{
+  reg u64 r;
+  val = val;
+  r = TreePath::lower_bound(val);
+  return r;
+}
+
+export
+fn tree_path_upper_bound_jazz(
+  reg u64 val
+) -> reg u64
+{
+  reg u64 r;
+  val = val;
+  r = TreePath::upper_bound(val);
+  return r;
+}
+
+export
+fn tree_path_level_jazz(
+  reg u64 val
+) -> reg u64
+{
+  reg u64 r;
+  val = val;
+  r = TreePath::level(val);
+  return r;
+}
