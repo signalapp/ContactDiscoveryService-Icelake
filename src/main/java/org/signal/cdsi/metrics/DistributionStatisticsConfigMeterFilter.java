@@ -14,12 +14,12 @@ import jakarta.inject.Singleton;
 @Singleton
 class DistributionStatisticsConfigMeterFilter implements MeterFilter {
 
-  private static final DistributionStatisticConfig defaultDistributionStatisticConfig = DistributionStatisticConfig.builder()
+  private static final DistributionStatisticConfig DEFAULT_DISTRIBUTION_STATISTIC_CONFIG = DistributionStatisticConfig.builder()
       .percentilesHistogram(true)
       .build();
 
   @Override
   public DistributionStatisticConfig configure(final Id id, final DistributionStatisticConfig config) {
-    return defaultDistributionStatisticConfig.merge(config);
+    return config.merge(DEFAULT_DISTRIBUTION_STATISTIC_CONFIG);
   }
 }
