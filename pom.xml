@@ -22,8 +22,8 @@
     <micronaut.runtime>netty</micronaut.runtime>
     <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
 
-    <aws.sdk.version>2.41.8</aws.sdk.version>
-    <commons.codec.version>1.20.0</commons.codec.version>
+    <aws.sdk.version>2.42.4</aws.sdk.version>
+    <commons.codec.version>1.21.0</commons.codec.version>
     <guava.version>33.5.0-jre</guava.version>
     <httpcomponents.httpcore.version>4.4.16</httpcomponents.httpcore.version>
     <hdrhistogram.version>2.2.2</hdrhistogram.version>
@@ -70,7 +70,7 @@
     <dependency>
       <groupId>com.azure</groupId>
       <artifactId>azure-cosmos</artifactId>
-      <version>4.76.0</version>
+      <version>4.78.0</version>
       <exclusions>
         <!-- com.azure:azure-cosmos directly and transitively depends on different versions of the hdrhistogram package.
         Excluding the package here and making it a direct dependency to resolve that internal conflict. -->
@@ -289,13 +289,13 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.14.1</version>
+          <version>3.15.0</version>
         </plugin>
 
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-dependency-plugin</artifactId>
-          <version>3.9.0</version>
+          <version>3.10.0</version>
         </plugin>
 
         <plugin>
@@ -307,19 +307,19 @@
         <plugin>
           <groupId>org.apache.maven.plugins</groupId>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>3.5.4</version>
+          <version>3.5.5</version>
         </plugin>
 
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>exec-maven-plugin</artifactId>
-          <version>3.6.2</version>
+          <version>3.6.3</version>
         </plugin>
 
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>templating-maven-plugin</artifactId>
-          <version>3.0.0</version>
+          <version>3.1.0</version>
         </plugin>
 
         <plugin>
