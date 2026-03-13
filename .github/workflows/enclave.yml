@@ -13,7 +13,7 @@ jobs:
   build_release_enclave:
     name: Build release enclave
     runs-on: ubuntu-22.04
-    timeout-minutes: 20
+    timeout-minutes: 60
 
     steps:
       - name: Checkout main project
