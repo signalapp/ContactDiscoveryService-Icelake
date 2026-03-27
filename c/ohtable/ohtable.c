@@ -114,7 +114,7 @@ static ohtable* _create(oram* oram, size_t record_size_qwords)
 
 ohtable *ohtable_create(size_t record_size_qwords, entropy_func getentropy)
 {
-    #ifdef IS_TEST
+    #if defined(IS_TEST) || defined(IS_STAGING)
     oram *oram = oram_create_depth16(getentropy); 
     #else
     oram *oram = oram_create_120G_16shards(getentropy); 

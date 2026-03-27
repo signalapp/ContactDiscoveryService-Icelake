@@ -62,6 +62,10 @@ TRUSTED_LDFLAGS=\
   -Wl,-gc-sections \
   -Wl,-wrap=noise_rand_bytes \
 ##TRUSTED_LDFLAGS
+STAGING_CFLAGS= \
+  $(TRUSTED_CFLAGS) \
+  -DIS_STAGING \
+## STAGING_CFLAGS
 
 TEST_CC=$(CC)
 TEST_CFLAGS= \
@@ -116,6 +120,9 @@ JASMIN_PROD_SLICE=`(cat jasmin.slice 2>/dev/null || true) | while read func; do 
 JASMIN_TEST_FLAGS=\
   -I ENV=$(BASEDIR)/jasmin.test \
 ##JASMIN_TEST_FLAGS
+JASMIN_STAGING_FLAGS=\
+  -I ENV=$(BASEDIR)/jasmin.staging \
+##JASMIN_STAGING_FLAGS
 JASMIN_PROD_FLAGS=\
   -I ENV=$(BASEDIR)/jasmin.prod \
 ##JASMIN_PROD_FLAGS
@@ -126,6 +133,9 @@ JASMIN_TEST_CT_FLAGS=\
 JASMIN_PROD_CT_FLAGS=\
   $(JASMIN_PROD_SLICE) \
 ## JASMIN_PROD_CT_FLAGS
+JASMIN_STAGING_CT_FLAGS=\
+	$(JASMIN_PROD_CT_FLAGS) \
+## JASMIN_STAGING_CT_FLAGS
 
 # Common flags used when invoking jasmin tools
 JASMIN_FLAGS= \

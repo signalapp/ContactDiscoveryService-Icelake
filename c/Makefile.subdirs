@@ -5,6 +5,11 @@ jazz_%.s: %.jazz
 	$(JASMIN_CT) $(JASMIN_PROD_FLAGS) $(JASMIN_SCT_FLAGS) $<
 	$(JASMINC)   $(JASMIN_PROD_FLAGS) $(JASMIN_FLAGS) $(JASMIN_PROD_CT_FLAGS) -o $@ $<
 
+jazzstg_%.s: %.jazz
+	$(JASMIN_CT) $(JASMIN_STAGING_FLAGS) $(JASMIN_CT_FLAGS) $<
+	$(JASMIN_CT) $(JASMIN_STAGING_FLAGS) $(JASMIN_SCT_FLAGS) $<
+	$(JASMINC)   $(JASMIN_STAGING_FLAGS) $(JASMIN_FLAGS) $(JASMIN_STAGING_CT_FLAGS) -o $@ $<
+
 jazztest_%.s: %.jazz
 	$(JASMIN_CT) $(JASMIN_TEST_FLAGS) $(JASMIN_CT_FLAGS) $<
 	$(JASMIN_CT) $(JASMIN_TEST_FLAGS) $(JASMIN_SCT_FLAGS) $<
@@ -13,10 +18,19 @@ jazztest_%.s: %.jazz
 trusted_%.o: %.c ../*/*.h
 	$(TRUSTED_CC) -c -o $@ $< $(TRUSTED_CFLAGS) $(WARNING_CFLAGS)
 
+staging_%.o: %.c ../*/*.h
+	$(TRUSTED_CC) -c -o $@ $< $(STAGING_CFLAGS) $(WARNING_CFLAGS)
+
 trusted_jazz_%.o: jazz_%.s
 	$(TRUSTED_CC) -c -o $@ $< $(TRUSTED_CFLAGS)
 
+staging_jazz_%.o: jazzstg_%.s
+	$(TRUSTED_CC) -c -o $@ $< $(STAGING_CFLAGS)
+
 libtrusted.a: $(patsubst %.c,trusted_%.o,$(wildcard *.c)) $(patsubst %.jazz,trusted_jazz_%.o,$(wildcard *.jazz))
+	ar rcs $@ $^
+
+libstaging.a: $(patsubst %.c,staging_%.o,$(wildcard *.c)) $(patsubst %.jazz,staging_jazz_%.o,$(wildcard *.jazz))
 	ar rcs $@ $^
 
 untrusted_%.o: %.c ../*/*.h

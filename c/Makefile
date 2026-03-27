@@ -33,6 +33,8 @@ install: sign libjnishim.so
 	mkdir -pv $(INSTALL_DIR)
 	cp -fv enclave.Standard_DC24s_v3 $(INSTALL_DIR)/enclave-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),Standard_DC24s_v3-$(shell $(OE_DIR)/bin/oesign dump -e enclave.Standard_DC24s_v3 | fgrep -i mrenclave | cut -d '=' -f2)).signed
 	cp -fv libjnishim.so $(INSTALL_DIR)/libjnishim-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),Standard_DC24s_v3-$(shell $(OE_DIR)/bin/oesign dump -e enclave.Standard_DC24s_v3 | fgrep -i mrenclave | cut -d '=' -f2)).so
+	cp -fv enclave.Standard_DC2s_v3 $(INSTALL_DIR)/enclave-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),Standard_DC2s_v3-$(shell $(OE_DIR)/bin/oesign dump -e enclave.Standard_DC2s_v3 | fgrep -i mrenclave | cut -d '=' -f2)).signed
+	cp -fv libjnishim.so $(INSTALL_DIR)/libjnishim-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),Standard_DC2s_v3-$(shell $(OE_DIR)/bin/oesign dump -e enclave.Standard_DC2s_v3 | fgrep -i mrenclave | cut -d '=' -f2)).so
 	# If ENCLAVE_ID is specified, the -test enclave is the one that will be installed
 	cp -fv enclave-debug.signed $(INSTALL_DIR)/enclave-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),debug).signed
 	cp -fv libjnishim.so $(INSTALL_DIR)/libjnishim-$(if $(ENCLAVE_ID),$(ENCLAVE_ID),debug).so
@@ -87,6 +89,10 @@ SUBDIRS=$(subst /,,$(wildcard */))
 lib%_t.a: % | gentrustuntrust
 	$(MAKE) -C $* -f ../Makefile.subdirs libtrusted.a
 	cp -v $*/libtrusted.a ./lib$*_t.a
+
+lib%_s.a: % | gentrustuntrust
+	$(MAKE) -C $* -f ../Makefile.subdirs libstaging.a
+	cp -v $*/libstaging.a ./lib$*_s.a
 
 lib%_u.a: % | gentrustuntrust
 	# Untrusted archives are C-only; no Jasmin is built for host-side code.
@@ -145,6 +151,14 @@ enclave.bin: \
     libtrust_t.a \
     libenclave_t.a \
     $(patsubst %,lib%_t.a,$(TESTABLE_LIBRARY_DIRS)) \
+    libnoise.a \
+    ##
+	$(TRUSTED_CC) -o $@ $(TRUSTED_OE_LIBS) $^ $(TRUSTED_OE_LIBS) $(TRUSTED_LDFLAGS)
+
+enclave.staging: \
+    libtrust_s.a \
+    libenclave_s.a \
+    $(patsubst %,lib%_s.a,$(TESTABLE_LIBRARY_DIRS)) \
     libnoise.a \
     ##
 	$(TRUSTED_CC) -o $@ $(TRUSTED_OE_LIBS) $^ $(TRUSTED_OE_LIBS) $(TRUSTED_LDFLAGS)
@@ -260,13 +274,16 @@ public.pem:
 	openssl rsa -in private.pem -pubout -out public.pem
 
 .PHONY: sign
-sign: enclave-debug.signed enclave.Standard_DC24s_v3
+sign: enclave-debug.signed enclave.Standard_DC24s_v3 enclave.Standard_DC2s_v3
 
 enclave-debug.signed: enclave.bin public.pem constant_time_check.test
 	$(OE_DIR)/bin/oesign sign -e enclave.bin -c cds-test.conf -k private.pem -o $@
 
 enclave.Standard_DC24s_v3: enclave.bin public.pem constant_time_check.test cds_Standard_DC24s_v3.conf
 	$(OE_DIR)/bin/oesign sign -e enclave.bin -c cds_Standard_DC24s_v3.conf -k private.pem -o $@
+
+enclave.Standard_DC2s_v3: enclave.staging public.pem constant_time_check.test cds_Standard_DC2s_v3.conf
+	$(OE_DIR)/bin/oesign sign -e enclave.staging -c cds_Standard_DC2s_v3.conf -k private.pem -o $@
 
 enclave.testsigned: enclave.testbin public.pem cds-test.conf
 	$(OE_DIR)/bin/oesign sign -e enclave.testbin -c cds-test.conf -k private.pem -o $@
@@ -285,6 +302,7 @@ clean:
       enclave.testsigned \
       enclave.testbin \
       enclave.Standard_DC24s_v3 \
+      enclave.Standard_DC2s_v3 \
       enclave-debug.signed \
       libjnishim.so \
       trust/ \

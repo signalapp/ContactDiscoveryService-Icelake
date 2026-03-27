@@ -5,6 +5,7 @@ enclave.Standard_DC24s_v3
 enclave.Standard_DC2s_v3
 enclave.bin
 enclave.signed
+enclave.staging
 enclave.testbin
 enclave.testsigned
 libjnishim.so
