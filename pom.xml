@@ -22,12 +22,12 @@
     <micronaut.runtime>netty</micronaut.runtime>
     <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
 
-    <aws.sdk.version>2.42.4</aws.sdk.version>
+    <aws.sdk.version>2.42.25</aws.sdk.version>
     <commons.codec.version>1.21.0</commons.codec.version>
     <guava.version>33.5.0-jre</guava.version>
     <httpcomponents.httpcore.version>4.4.16</httpcomponents.httpcore.version>
     <hdrhistogram.version>2.2.2</hdrhistogram.version>
-    <testcontainers.version>2.0.3</testcontainers.version>
+    <testcontainers.version>2.0.4</testcontainers.version>
 
     <make.docker.prefix>docker_</make.docker.prefix>
 
@@ -70,7 +70,7 @@
     <dependency>
       <groupId>com.azure</groupId>
       <artifactId>azure-cosmos</artifactId>
-      <version>4.78.0</version>
+      <version>4.79.0</version>
       <exclusions>
         <!-- com.azure:azure-cosmos directly and transitively depends on different versions of the hdrhistogram package.
         Excluding the package here and making it a direct dependency to resolve that internal conflict. -->
