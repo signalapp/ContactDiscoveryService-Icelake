@@ -34,6 +34,9 @@ error_t noise_encrypt_message(
     if (plaintext_offset + to_encrypt > plaintext_size) {
       to_encrypt = plaintext_size - plaintext_offset;
     }
+    if (ciphertext_offset + to_encrypt + noise_cipherstate_get_mac_length(tx) > *ciphertext_size) {
+      return err_ENCLAVE__GENERAL__BUFFER_TOO_SMALL;
+    }
     memcpy(ciphertext_data+ciphertext_offset, plaintext_data+plaintext_offset, to_encrypt);
     NoiseBuffer buf;
     noise_buffer_set_inout(
