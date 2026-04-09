@@ -856,6 +856,10 @@ int enclave_handshake(
   GOTO_IF_ERROR(err = noise_errort(err_NOISE__HANDSHAKESTATE__WRITE__, noise_handshakestate_write_message(c->handshake, &buf_out, NULL)), client_unlock);
   TEST_LOG("handshake: size=%zu", buf_out.size);
 
+  if (buf_out.size > out_size) {
+    err = err_ENCLAVE__GENERAL__BUFFER_TOO_SMALL;
+    goto client_unlock;
+  }
   memcpy(out, handshake_msg, buf_out.size);
   *actual_out_size = buf_out.size;
 
