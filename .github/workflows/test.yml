@@ -112,7 +112,8 @@ jobs:
           cache: 'maven'
 
       - name: Set up necessary SGX stuff
-        run: sudo ./c/docker/sgx_runtime_libraries.sh
+        run: |
+          sudo ./c/docker/sgx_runtime_libraries.sh
 
       - name: Build and test with Maven
         run: ./mvnw -e -B verify
