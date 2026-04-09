@@ -149,7 +149,15 @@ static error_t client_remove(uint64_t id, client_t** c) {
   *c = (client_t*)id;
   ASSERT_ERR(oe_is_within_enclave(*c, sizeof(client_t)), err_ENCLAVE__GENERAL__CLIENT_REMOVE_FAILED);
   ASSERT_ERR(((uintptr_t)*c) != ((uintptr_t)&g_client_secret), err_ENCLAVE__GENERAL__CLIENT_REMOVE_FAILED);
-  ASSERT_ERR(__atomic_compare_exchange_n(&(*c)->canary, &g_client_secret, 0, false, __ATOMIC_ACQ_REL, __ATOMIC_ACQ_REL), err_ENCLAVE__GENERAL__CLIENT_REMOVE_FAILED);
+  uintptr_t expected_canary = __atomic_load_n(&g_client_secret, __ATOMIC_CONSUME);
+  ASSERT_ERR(__atomic_compare_exchange_n(
+          &(*c)->canary,
+          &expected_canary,
+          0,
+          false,
+          __ATOMIC_ACQ_REL,
+          __ATOMIC_ACQ_REL),
+      err_ENCLAVE__GENERAL__CLIENT_REMOVE_FAILED);
   error_t err = client_setstate(*c, CLIENT_UNUSED, CLIENT_DELETE);
   if (err != err_SUCCESS) {
     __atomic_store_n(&(*c)->canary, g_client_secret, __ATOMIC_RELEASE);
