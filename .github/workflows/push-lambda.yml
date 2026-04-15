@@ -4,6 +4,9 @@ on:
   release:
     types: [published]
 
+env:
+  REF_NAME: ${{ github.ref_name }}
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -35,8 +38,8 @@ jobs:
 
       - name: Build and lambda jar
         working-directory: filter-cds-updates
-        run: ../mvnw -e -B verify -Djgitver.use-version=${{ github.ref_name }}
+        run: ../mvnw -e -B verify -Djgitver.use-version="${REF_NAME}"
 
       - name: Upload artifact to S3
         working-directory: filter-cds-updates
-        run: aws s3 cp target/filter-cds-updates-lambda-${{ github.ref_name }}.jar s3://${{ vars.S3_BUCKET }}/${{ vars.S3_BUCKET_KEY }}/
+        run: aws s3 cp "target/filter-cds-updates-lambda-${REF_NAME}.jar" s3://${{ vars.S3_BUCKET }}/${{ vars.S3_BUCKET_KEY }}/
