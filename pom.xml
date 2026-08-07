@@ -22,8 +22,8 @@
     <micronaut.runtime>netty</micronaut.runtime>
     <exec.mainClass>org.signal.cdsi.Application</exec.mainClass>
 
-    <aws.sdk.version>2.48.4</aws.sdk.version>
-    <commons.codec.version>1.22.0</commons.codec.version>
+    <aws.sdk.version>2.49.5</aws.sdk.version>
+    <commons.codec.version>1.22.1</commons.codec.version>
     <guava.version>33.6.0-jre</guava.version>
     <httpcomponents.httpcore5.version>5.4.3</httpcomponents.httpcore5.version>
     <hdrhistogram.version>2.2.2</hdrhistogram.version>
