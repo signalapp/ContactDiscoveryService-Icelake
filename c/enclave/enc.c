@@ -449,11 +449,17 @@ int enclave_new_client(
   RETURN_IF_ERROR(MALLOCZ(c));
   TEST_LOG("noise_handshakestate_new_by_id");
   error_t err = err_SUCCESS;
+  // We pass in a new state pointer because noise_handshakestate_new_by_id will
+  // allocate into this pointer, then free it if it encounters an error.  However,
+  // the pointer will at that point be non-null, leading to free_client double-
+  // freeing it.
+  NoiseHandshakeState* new_state = NULL;
   GOTO_IF_ERROR(err = noise_errort(
       err_NOISE__HANDSHAKESTATE__NEW__,
       noise_handshakestate_new_by_id(
-          &c->handshake, &cdsi_client_protocol_id, NOISE_ROLE_RESPONDER)),
+          &new_state, &cdsi_client_protocol_id, NOISE_ROLE_RESPONDER)),
       free_client);
+  c->handshake = new_state;
   NoiseDHState *local_keypair = noise_handshakestate_get_local_keypair_dh(c->handshake);
 
   TEST_LOG("client: %p", c);
