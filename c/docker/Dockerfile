@@ -50,8 +50,8 @@ ENV PATH="$PATH:/opt/pip_env/bin"
 COPY sgx_runtime_libraries.sh /tmp/sgx_runtime_libraries.sh
 RUN /tmp/sgx_runtime_libraries.sh
 
-ARG OPENENCLAVE_VERSION=0.19.16
-ARG OPENENCLAVE_HASH=30b72b68307cf6d57c48bb1a83bd16814316b21546101cd60a3122e2116953f8
+ARG OPENENCLAVE_VERSION=0.19.17
+ARG OPENENCLAVE_HASH=b5636751273fd094e21de61ae91a7fdedb507001ebe19f9b2b28088b0927ce52
 ADD --checksum=sha256:${OPENENCLAVE_HASH} \
     https://github.com/openenclave/openenclave/releases/download/v${OPENENCLAVE_VERSION}/Ubuntu_2204_open-enclave_${OPENENCLAVE_VERSION}_amd64.deb ./
 RUN dpkg -i Ubuntu_2204_open-enclave_${OPENENCLAVE_VERSION}_amd64.deb
