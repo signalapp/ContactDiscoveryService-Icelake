@@ -89,6 +89,18 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
 
   private final DistributionSummary userTokenCountDist;
 
+  /**
+   * Number of new e164s in each rate-limit request (the per-request permit delta). Recorded on every call to
+   * {@link #prepare(String, int, ByteBuffer, ByteBuffer)}, whether or not the resulting token is ever validated.
+   */
+  private final DistributionSummary requestedE164CountDist;
+
+  /**
+   * Number of permits actually debited from a bucket when a token is validated. Because token costs accumulate across
+   * a chain of prepared-but-unvalidated tokens, a single observation may cover several earlier requests.
+   */
+  private final DistributionSummary chargedE164CountDist;
+
   private final Timer tokenGcTimer;
   private final Timer prepareTimer;
   private final Timer validateTimer;
@@ -116,6 +128,12 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
     this.gcOldTokens = gcOldTokens;
 
     userTokenCountDist = DistributionSummary.builder(name(getClass(), "userTokenCount"))
+        .distributionStatisticExpiry(Duration.ofHours(2))
+        .register(meterRegistry);
+    requestedE164CountDist = DistributionSummary.builder(name(getClass(), "requestedE164Count"))
+        .distributionStatisticExpiry(Duration.ofHours(2))
+        .register(meterRegistry);
+    chargedE164CountDist = DistributionSummary.builder(name(getClass(), "chargedE164Count"))
         .distributionStatisticExpiry(Duration.ofHours(2))
         .register(meterRegistry);
     tokenGcTimer = meterRegistry.timer(TOKEN_GC_TIMER_NAME);
@@ -191,6 +209,8 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
     String newTokenId = base64Encode(newTokenHash);
     Preconditions.checkArgument(!Objects.equals(newTokenId, TokenBucket.ID),
         "token cannot be the bucket identifier constant");
+
+    requestedE164CountDist.record(amountDelta);
 
     // just need a final reference to the TokenBucket later on in the pipeline
     final TokenBucket[] bucketRef = new TokenBucket[1];
@@ -455,7 +475,10 @@ public class CosmosTokenRateLimiter implements TokenRateLimiter {
           }
         })
         .onErrorMap(CosmosException.class, CosmosTokenRateLimiter::marshal)
-        .doOnSuccess(ignore -> meterRegistry.counter(VALIDATE_COUNTER_NAME, "outcome", "success").increment())
+        .doOnSuccess(ignore -> {
+          meterRegistry.counter(VALIDATE_COUNTER_NAME, "outcome", "success").increment();
+          chargedE164CountDist.record(spent[0]);
+        })
         .doFinally(ignored -> sample.stop(validateTimer))
         .toFuture()
         .thenApply(ignored -> spent[0]);

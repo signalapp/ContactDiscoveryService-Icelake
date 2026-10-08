@@ -7,6 +7,7 @@ package org.signal.cdsi.limits.cosmos;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -18,6 +19,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.signal.cdsi.limits.cosmos.CosmosTokenRateLimiter.base64Encode;
+import static org.signal.cdsi.metrics.MetricsUtil.name;
 
 import com.azure.cosmos.CosmosAsyncContainer;
 import com.azure.cosmos.implementation.ConflictException;
@@ -27,6 +29,7 @@ import com.azure.cosmos.models.CosmosItemOperation;
 import com.azure.cosmos.models.CosmosItemOperationType;
 import com.azure.cosmos.models.CosmosItemResponse;
 import com.azure.cosmos.models.PartitionKey;
+import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -53,6 +56,7 @@ public class CosmosTokenRateLimiterTest {
   private CosmosAsyncContainer container;
   private Clock clock;
   private CosmosTokenRateLimiter cosmosTokenRateLimiter;
+  private SimpleMeterRegistry meterRegistry;
 
   @BeforeEach
   public void setup() {
@@ -63,7 +67,8 @@ public class CosmosTokenRateLimiterTest {
     conf.setBucketSize(BUCKET_SIZE);
     conf.setLeakRateDuration(Duration.ofSeconds(1));
     conf.setLeakRateScalar(1);
-    this.cosmosTokenRateLimiter = new CosmosTokenRateLimiter(container, clock, conf, new SimpleMeterRegistry(), false);
+    this.meterRegistry = new SimpleMeterRegistry();
+    this.cosmosTokenRateLimiter = new CosmosTokenRateLimiter(container, clock, conf, meterRegistry, false);
   }
 
   void mockRead(String id, TokenCost response) {
@@ -243,6 +248,62 @@ public class CosmosTokenRateLimiterTest {
     // tx should delete token cost, and update bucket to be at 10 (was at 5, replenished 1 permit, spent 6)
     verify(container, times(1))
         .executeCosmosBatch(argThat(new BatchMatcher(CosmosItemOperationType.REPLACE, 10)), any());
+  }
+
+  @Test
+  public void requestedE164CountRecorded() {
+    final ByteBuffer oldToken = token();
+    final ByteBuffer newToken = token();
+
+    final DistributionSummary requested =
+        meterRegistry.find(name(CosmosTokenRateLimiter.class, "requestedE164Count")).summary();
+    assertNotNull(requested);
+
+    // bucket can only accept 4 more permits; old token already costs 2
+    mockRead(TokenBucket.ID, TokenBucket.class, mockResponse(tokenBucket(6), ETAG));
+    mockRead(base64Encode(oldToken), tokenCost(oldToken, 2));
+
+    // rate limited, but the request is still counted
+    assertThrows(CompletionException.class, () -> cosmosTokenRateLimiter.prepare(KEY, 3, oldToken, newToken).join());
+    assertEquals(1, requested.count());
+    assertEquals(3.0, requested.totalAmount());
+
+    // only the per-request delta is recorded, not the accumulated token cost
+    final Mono<CosmosItemResponse<TokenCost>> createTokenResponse = mockResponse(null);
+    when(container.createItem(eq(tokenCost(newToken, 4)), any(), any())).thenReturn(createTokenResponse);
+    cosmosTokenRateLimiter.prepare(KEY, 2, oldToken, newToken).join();
+    assertEquals(2, requested.count());
+    assertEquals(5.0, requested.totalAmount());
+  }
+
+  @Test
+  public void chargedE164CountRecorded() {
+    final ByteBuffer token = token();
+
+    final DistributionSummary charged =
+        meterRegistry.find(name(CosmosTokenRateLimiter.class, "chargedE164Count")).summary();
+    assertNotNull(charged);
+
+    mockRead(base64Encode(token), tokenCost(token, 5));
+    mockRead(TokenBucket.ID, TokenBucket.class, mockResponse(tokenBucket(6), ETAG));
+
+    // rate limited; nothing is charged
+    assertThrows(CompletionException.class, () -> cosmosTokenRateLimiter.validate(KEY, token).join());
+    assertEquals(0, charged.count());
+
+    // advance the clock so the token can be spent
+    when(clock.instant()).thenReturn(Instant.ofEpochSecond(1));
+    when(container.executeCosmosBatch(any(), any())).thenReturn(Mono.empty());
+    assertEquals(5, cosmosTokenRateLimiter.validate(KEY, token).join());
+    assertEquals(1, charged.count());
+    assertEquals(5.0, charged.totalAmount());
+
+    // a token with no stored cost is free, and is recorded as a zero-cost charge
+    final ByteBuffer freeToken = token();
+    mockRead(base64Encode(freeToken), TokenCost.class, Mono.error(new NotFoundException()));
+    assertEquals(0, cosmosTokenRateLimiter.validate(KEY, freeToken).join());
+    assertEquals(2, charged.count());
+    assertEquals(5.0, charged.totalAmount());
   }
 
   @Test
