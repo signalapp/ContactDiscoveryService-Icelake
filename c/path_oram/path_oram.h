@@ -69,6 +69,10 @@ const oram_statistics* oram_report_statistics(oram* oram);
 
 size_t oram_max_stash_size(const oram* oram);
 
+size_t oram_recursion_depth(const oram *oram);
+
+void oram_set_recursion_depth(oram *oram, size_t recursion_depth);
+
 /**
  * @brief Put a block of data into an ORAM.
  *
