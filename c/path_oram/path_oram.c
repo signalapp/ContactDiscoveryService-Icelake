@@ -216,6 +216,16 @@ void oram_clear(oram *oram)
     // The position map has random placements so we do not need to clear these.
 }
 
+size_t oram_recursion_depth(const oram *oram)
+{
+    return oram->statistics.recursion_depth;
+}
+
+void oram_set_recursion_depth(oram *oram, size_t recursion_depth)
+{
+    oram->statistics.recursion_depth = recursion_depth;
+}
+
 size_t oram_block_size(const oram *oram)
 {
     (void)oram;  // Compile-time constant from bucket.h

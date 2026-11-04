@@ -171,15 +171,25 @@ position_map *oram_position_map_create_120G_16shards(entropy_func getentropy)
     // initialize position map with random data
     u32 *buf;
     CHECK(buf = calloc(block_size * 2, sizeof(*buf)));
-    for (size_t i = 0; i < blocks_needed; ++i)
+    for (error_t err = err_TEST__; err != err_SUCCESS;)
     {
-        for (size_t j = 0; j < block_size * 2; ++j)
+        for (size_t i = 0; i < blocks_needed; ++i)
         {
-            getentropy(buf + j, sizeof(*buf));
-            buf[j] = buf[j] % num_positions_in_range;
+            for (size_t j = 0; j < block_size * 2; ++j)
+            {
+                getentropy(buf + j, sizeof(*buf));
+                buf[j] = buf[j] % num_positions_in_range;
+            }
+            err = oram_position_map_put(oram, i, (u64*)buf);
+            if (err != err_SUCCESS)
+            {
+                TEST_LOG("oram_position_map_create_120G_16shards: initialization aborted, restarting");
+                size_t recursion_depth = oram_recursion_depth(oram);
+                oram_clear(oram);
+                oram_set_recursion_depth(oram, recursion_depth);
+                break;
+            }
         }
-        // fprintf(stderr, "oram_position_map_create: putting block_id: %" PRIu64 "\n", i); // DEBUG
-        oram_position_map_put(oram, i, (u64*)buf);
     }
     free(buf);
 
@@ -233,15 +243,25 @@ position_map *oram_position_map_create_depth16(entropy_func getentropy)
     // initialize position map with random data
     u32 *buf;
     CHECK(buf = calloc(block_size * 2, sizeof(*buf)));
-    for (size_t i = 0; i < blocks_needed; ++i)
+    for (error_t err = err_TEST__; err != err_SUCCESS;)
     {
-        // TEST_LOG( "oram_position_map_create: putting block_id: %" PRIu64 "\n", i); // DEBUG
-        for (size_t j = 0; j < block_size * 2; ++j)
+        for (size_t i = 0; i < blocks_needed; ++i)
         {
-            getentropy(buf + j, sizeof(*buf));
-            buf[j] = buf[j] % num_positions_in_range;
+            for (size_t j = 0; j < block_size * 2; ++j)
+            {
+                getentropy(buf + j, sizeof(*buf));
+                buf[j] = buf[j] % num_positions_in_range;
+            }
+            err = oram_position_map_put(oram, i, (u64*)buf);
+            if (err != err_SUCCESS)
+            {
+                TEST_LOG("oram_position_map_create_depth16: initialization aborted, restarting");
+                size_t recursion_depth = oram_recursion_depth(oram);
+                oram_clear(oram);
+                oram_set_recursion_depth(oram, recursion_depth);
+                break;
+            }
         }
-        oram_position_map_put(oram, i, (u64*)buf);
     }
     free(buf);
     
